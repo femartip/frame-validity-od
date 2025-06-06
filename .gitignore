@@ -1,4 +1,4 @@
-data
+data/zod/single_frames
 
 # Model extensions
 *.pth
