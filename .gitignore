@@ -3,6 +3,8 @@ data/zod_mini/single_frames
 data/zod_yolo/images
 data/zod_yolo/labels
 models/yolo_experiments
+runs
+
 # Model extensions
 *.pth
 *.pkl

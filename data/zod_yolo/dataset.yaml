@@ -1,0 +1,13 @@
+# Dataset configuration
+path: /home/felix/Predictability-AD/data/zod_yolo
+train: images/train
+val: images/val
+test: images/test
+
+# Classes
+names:
+  0: Vehicle
+  1: VulnerableVehicle
+  2: Pedestrian
+
+nc: 3

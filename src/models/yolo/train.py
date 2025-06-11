@@ -1,15 +1,24 @@
 from ultralytics import YOLO
+from pathlib import Path
+import tensorboard
 
 def train_yolo():
-    # Load a pretrained YOLO11n model
-    model = YOLO("yolo11n.pt")
+    model_path = Path("./models/yolo11s.pt")
 
-    # Train the model on the COCO8 dataset for 100 epochs
+    if model_path.exists():
+        model = YOLO(model_path)
+    else:
+        model = YOLO("yolo11s.pt")
+
     train_results = model.train(
-        data="coco8.yaml",  # Path to dataset configuration file
-        epochs=100,  # Number of training epochs
-        imgsz=640,  # Image size for training
-        device=0,  # Device to run on (e.g., 'cpu', 0, [0,1,2,3])
+        data="./data/zod_yolo/dataset.yaml",  # Path to dataset configuration file
+        project="./models/yolo_experiments/",
+        imgsz=1024,
+        pretrained=True,
+        device=1,
+        epochs=50,  # Number of training epochs
+        batch=32,
+        plots=True,
     )
 
     print("Training results:")
@@ -20,13 +29,6 @@ def train_yolo():
 
     print("Evaluation results:")
     print(metrics)
-
-    # Perform object detection on an image
-    results = model("path/to/image.jpg")  # Predict on an image
-    results[0].show()  # Display results
-
-    # Export the model to ONNX format for deployment
-    path = model.export(format="onnx")  # Returns the path to the exported model
 
 if __name__ == "__main__":
     train_yolo()

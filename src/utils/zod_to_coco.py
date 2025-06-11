@@ -130,5 +130,5 @@ def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full",
 if __name__ == "__main__":
     dataset_root = "./data/zod"
     output_dir = "./data/zod_coco"
-    str_version = "mini"
+    str_version = "full"
     convert_to_coco(dataset_root=dataset_root, output_dir=output_dir, version=str_version)  
