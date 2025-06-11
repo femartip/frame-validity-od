@@ -5,6 +5,8 @@ data/zod_coco/zod_full_Anonymization.BLUR_train.json
 data/zod_yolo/images
 data/zod_yolo/labels
 models/yolo_experiments
+results/yolo/images
+results/internimage/images
 runs
 
 # Model extensions

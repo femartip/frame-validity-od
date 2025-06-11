@@ -11,8 +11,8 @@ from torch import nn
 import mmcv
 from mmdet.apis import init_detector, inference_detector
 
-from classification.functons_cls import initialize_model as initialize_model_cls
-from classification.functons_cls import classification_oneDet
+from functions_cls import initialize_model as initialize_model_cls
+from functions_cls import classification_oneDet
 from colorama import Fore, Style
 
 def process_detections(det_results: list, thr_det: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -132,9 +132,6 @@ if __name__=='__main__':
     # Load input images
     input_path = './zod_yolo/images/val/'
     output_folder = './results/internimage/'
-    
-    if not os.path.exists(output_folder):
-        os.mkdir(output_folder)
 
     args = argsparse()
     
