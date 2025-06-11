@@ -1,5 +1,7 @@
 data/zod/single_frames
+data/zod/trainval-frames-full.json
 data/zod_mini/single_frames
+data/zod_coco/zod_full_Anonymization.BLUR_train.json
 data/zod_yolo/images
 data/zod_yolo/labels
 models/yolo_experiments
