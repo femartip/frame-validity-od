@@ -1,8 +1,12 @@
 data/zod/single_frames
-
+data/zod_mini/single_frames
+data/zod_yolo/images
+data/zod_yolo/labels
+models/yolo_experiments
 # Model extensions
 *.pth
 *.pkl
+*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
