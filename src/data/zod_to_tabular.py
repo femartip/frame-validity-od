@@ -7,6 +7,7 @@ import random
 import os
 import argparse
 import logging
+from tqdm import tqdm
 
 from zod import ZodFrames
 from zod import ZodSequences
@@ -36,7 +37,9 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict
     API day limit is 10000 requests
     Current implementation rounds the hour to the floor, this is not ideal. 
     """
-    logging.debug(f"Getting Weather for {coords} on the {datatime_utc}")
+    datatime_day = str(datatime_utc).split(" ")[0]
+
+    logging.debug(f"Getting Weather for {coords} on the {datatime_day}")
     cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)
@@ -45,14 +48,16 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict
     
     url = "https://archive-api.open-meteo.com/v1/archive"
     params = {
-        "latitude": coords,
-        "longitude": coords,
-        "start_date": str(datatime_utc).split(" ")[0],
-        "end_date": str(datatime_utc).split(" ")[0],
-        "hourly": variable_names,
+        "latitude": coords[0],
+        "longitude": coords[1],
+        "start_date": datatime_day,
+        "end_date": datatime_day,
+        "hourly": ",".join(variable_names),
         "timezone": "UTC"
     }
     
+    logging.debug(f"API Parameters: {params}")
+
     response = openmeteo.weather_api(url, params=params)[0]
     
     if not response or not response.Hourly():
@@ -76,8 +81,10 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict
             hourly_data[var_name] = None
     
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    weather_dict = hourly_dataframe.query(f"date == '{datatime_utc}'").iloc[0].drop('date').to_dict()
+    datetime_obj = pd.to_datetime(datatime_day).tz_localize('UTC')
+    weather_dict = hourly_dataframe[hourly_dataframe['date'] == datetime_obj].iloc[0].drop('date').to_dict()
     logging.debug(f"Weather informatio for instance {weather_dict}")
+    
     return weather_dict
     
 
@@ -85,15 +92,19 @@ def get_data(zod_frames):
     training_frames = zod_frames.get_split(constants.TRAIN)
     validation_frames = zod_frames.get_split(constants.VAL)
 
-    logging.debug(f"Number of training frames: {len(training_frames)}") 
-    logging.debug(f"Number of validation frames: {len(validation_frames)}")
+    logging.info(f"Number of training frames: {len(training_frames)}") 
+    logging.info(f"Number of validation frames: {len(validation_frames)}")
     return training_frames, validation_frames
 
-def get_caracteristics(training_frames, validation_frames, zod_frames, num_frames: int, prev_frames_id: List[str]) -> tuple[dict, list]:
+def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames_id: List[str]) -> tuple[dict, list]:
     total_frames_id = [zod_frames[frame_id].metadata.frame_id for frame_id in training_frames]
-    frames_id = list(set(total_frames_id) - set(prev_frames_id))[:num_frames]
-    logging.debug(f"Frames not in csv {len(frames_id)}")
+    frames_id = list(set(total_frames_id) - set(prev_frames_id))
+    if len(frames_id) > num_frames:
+        frames_id = frames_id[:num_frames]
+    logging.info(f"Frames not in csv {len(frames_id)}")
+    #print(total_frames_id)
 
+    
     data_dict = {  
         "country": [], 
         "time_of_day": [], 
@@ -106,7 +117,7 @@ def get_caracteristics(training_frames, validation_frames, zod_frames, num_frame
         "hour": [],
     }   
 
-    for id in frames_id:
+    for id in tqdm(frames_id):
         data_dict["country"].append(zod_frames[id].metadata.country_code)
         data_dict["time_of_day"].append(zod_frames[id].metadata.time_of_day)
         data_dict["coords"].append((zod_frames[id].metadata.latitude, zod_frames[id].metadata.longitude))
@@ -137,10 +148,10 @@ def to_csv(data_dict: dict[str, list], frames_id: list, resume: bool) -> None:
         current_df = pd.DataFrame(data=data_dict, index= frames_id)
         df = pd.concat([prev_df, current_df])
         df.to_csv(DATA_DIR)
-        print(f"Data saved to {DATA_DIR}")
+        print(f"Data saved to {DATA_DIR}, length of dataframe {df.shape[0]}")
     else:
         df = pd.DataFrame(data=data_dict, index= frames_id)
-        df.to_csv(DATA_DIR)
+        df.to_csv(DATA_DIR, index=True)
         print("New csv saved")
 
 def argparser() -> argparse.Namespace:
@@ -153,7 +164,7 @@ def argparser() -> argparse.Namespace:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     args = argparser()
     dataset_root = "./data/zod"  
@@ -166,7 +177,9 @@ if __name__ == "__main__":
     if args.resume == True and os.path.exists(DATA_DIR):
         df = pd.read_csv(DATA_DIR, index_col=0)
         prev_frames_id.extend(df.index.values.tolist())
+        prev_frames_id = [f"{int(item):06d}" for item in prev_frames_id]
 
     logging.debug(f"List of previous ids: {prev_frames_id}")
-    data_dict, id = get_caracteristics(train, val, zod_frames, args.num_entries, prev_frames_id)
+    #data_dict, id = get_caracteristics(train, zod_frames, args.num_entries, prev_frames_id)
+    data_dict, id = get_caracteristics(val, zod_frames, args.num_entries, prev_frames_id)
     to_csv(data_dict, id, args.resume)

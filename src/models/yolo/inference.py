@@ -13,8 +13,7 @@ def load_model():
         print("Loading existing model")
         model = YOLO(model_path)
     else:
-        print("Model does not exist, will load new model")
-        model = YOLO("yolo11s.pt")
+        raise NameError
 
     return model
 
@@ -153,7 +152,7 @@ if __name__ == "__main__":
 
     image_extensions = ['.jpg', '.png', '.jpeg']
     images_files = [f for f in os.listdir(input_path) if any(f.lower().endswith(ext) for ext in image_extensions)]
-    images_files = images_files[:1000]
+    #images_files = images_files[:1000]
     print(f"Processing {len(images_files)} images")
 
     all_detections = {}
