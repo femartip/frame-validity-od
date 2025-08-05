@@ -29,10 +29,30 @@ import requests_cache
 from retry_requests import retry
 from tenacity import retry as tenacity_retry, wait_exponential
 
-DATA_DIR = "./data/metafeatures.csv"
+import cv2
+import sys
+from PIL import Image
+from brisque import Brisque
+from brisque import score as brisque_score
+import torch
+from torchmetrics import multimodal
+
+DATA_DIR = "./data/metafeatures_1.csv"
+
+def get_iqa(image: np.ndarray, func, *args) -> float:
+    if isinstance(func, multimodal.CLIPImageQualityAssessment):
+        image = torch.from_numpy(image)
+        image = image.permute(2, 0, 1).unsqueeze(0) 
+
+    blur = func(image, *args)
+
+    if isinstance(func, multimodal.CLIPImageQualityAssessment):
+        blur = blur.numpy()
+
+    return blur
 
 @tenacity_retry(wait=wait_exponential(multiplier=1, min=10, max=60))
-def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict:
+def get_weather_from_api(coords: tuple[float, float], datatime_utc: pd.Timestamp) -> dict:
     """
     API day limit is 10000 requests
     Current implementation rounds the hour to the floor, this is not ideal. 
@@ -44,7 +64,7 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)
 
-    variable_names = ["temperature_2m", "relative_humidity_2m", "precipitation", "rain", "snowfall", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "sunshine_duration", "wind_speed_10m", "weather_code"]
+    variable_names = ["temperature_2m", "relative_humidity_2m", "rain", "snowfall", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "sunshine_duration", "wind_speed_10m", "weather_code"]
     
     url = "https://archive-api.open-meteo.com/v1/archive"
     params = {
@@ -62,7 +82,7 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict
     
     if not response or not response.Hourly():
         print("Invalid weather response received")
-        return None
+        return {}
     
     hourly = response.Hourly()
 
@@ -80,9 +100,9 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: str) -> dict
             print(f"Variable {i} ({var_name}) is None")
             hourly_data[var_name] = None
     
+    
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    datetime_obj = pd.to_datetime(datatime_day).tz_localize('UTC')
-    weather_dict = hourly_dataframe[hourly_dataframe['date'] == datetime_obj].iloc[0].drop('date').to_dict()
+    weather_dict = hourly_dataframe[hourly_dataframe['date'] == datatime_utc].iloc[0].drop('date').to_dict()    
     logging.debug(f"Weather informatio for instance {weather_dict}")
     
     return weather_dict
@@ -108,7 +128,8 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
     data_dict = {  
         "country": [], 
         "time_of_day": [], 
-        "coords": [], 
+        "lat": [], 
+        "long": [], 
         "road_type": [],
         "road_condition": [], 
         "weather": [],
@@ -120,7 +141,8 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
     for id in tqdm(frames_id):
         data_dict["country"].append(zod_frames[id].metadata.country_code)
         data_dict["time_of_day"].append(zod_frames[id].metadata.time_of_day)
-        data_dict["coords"].append((zod_frames[id].metadata.latitude, zod_frames[id].metadata.longitude))
+        data_dict["lat"].append(zod_frames[id].metadata.latitude)
+        data_dict["long"].append(zod_frames[id].metadata.longitude)
         data_dict["road_type"].append(zod_frames[id].metadata.road_type)
         data_dict["road_condition"].append(zod_frames[id].metadata.road_condition)
         data_dict["weather"].append(zod_frames[id].metadata.scraped_weather) 
@@ -136,13 +158,21 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         data_dict["month"].append(zod_frames[id].info.keyframe_time.month)
         data_dict["hour"].append(zod_frames[id].info.keyframe_time.hour)            #In UTC+0, not local time
 
-        weather_dict = get_weather_from_api((zod_frames[id].metadata.latitude, zod_frames[id].metadata.longitude), zod_frames[id].info.keyframe_time.replace(minute=0, second=0, microsecond=0))
+        weather_dict = get_weather_from_api((zod_frames[id].metadata.latitude, zod_frames[id].metadata.longitude), pd.to_datetime(str(zod_frames[id].info.keyframe_time), utc=True).round('h'))
         data_dict.update(weather_dict)
+
+        zod_frame = zod_frames[id]
+        image = zod_frame.get_image()
+
+        func = {"brisque":brisque_score, "quality":multimodal.CLIPImageQualityAssessment(), "brightness": multimodal.CLIPImageQualityAssessment(prompts=("brightness",)),"noisiness": multimodal.CLIPImageQualityAssessment(prompts=("noisiness",)), "sharpness": multimodal.CLIPImageQualityAssessment(prompts=("sharpness",)), "contrast": multimodal.CLIPImageQualityAssessment(prompts=("contrast",)), "complexity": multimodal.CLIPImageQualityAssessment(prompts=("complexity",))}
+        iqa = {k: get_iqa(image ,v) for k, v in func.items()}
+        data_dict.update(iqa)
 
     return data_dict, frames_id
 
 def to_csv(data_dict: dict[str, list], frames_id: list, resume: bool) -> None:
-    assert os.path.exists(DATA_DIR), f"File {DATA_DIR} does not exist, cant save csv"
+    base_dir = "/".join(DATA_DIR.split("/")[:-1])
+    assert os.path.exists(base_dir), f"File {base_dir} does not exist, cant save csv"
     if resume:
         prev_df = pd.read_csv(DATA_DIR, index_col=0)
         current_df = pd.DataFrame(data=data_dict, index= frames_id)

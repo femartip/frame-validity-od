@@ -4,6 +4,7 @@ from tqdm import tqdm
 import os
 import json
 import cv2
+from .. import metrics
 
 def load_model():
     #model_path = Path("./models/yolo11s.pt")
@@ -39,7 +40,7 @@ def process_image(image_path: str, model, output_folder: str) -> dict:
     
     detections = {"coordinates": boxes, "class": boxes_cls, "confidence": boxes_conf}
     
-    matches = match_detections_to_annotations(detections, annotations)
+    matches = metrics.match_detections_to_annotations(detections, annotations)
 
     iou_scores = []
     for i, box in enumerate(boxes):
@@ -90,53 +91,6 @@ def load_yolo_annotations(annotation_path: str, img_width: int, img_height: int)
                     annotations.append([class_id, x_center, y_center, width, height])
     return annotations
 
-def calculate_iou(box1: list[int], box2: list[int]) -> float:
-    def center_to_corner(box):
-        x_center, y_center, width, height = box
-        x1 = x_center - width / 2
-        y1 = y_center - height / 2
-        x2 = x_center + width / 2
-        y2 = y_center + height / 2
-        return [x1, y1, x2, y2]
-    
-    box1_corner = center_to_corner(box1)
-    box2_corner = center_to_corner(box2)
-    
-    x1 = max(box1_corner[0], box2_corner[0])
-    y1 = max(box1_corner[1], box2_corner[1])
-    x2 = min(box1_corner[2], box2_corner[2])
-    y2 = min(box1_corner[3], box2_corner[3])
-    
-    if x2 <= x1 or y2 <= y1:
-        return 0.0
-    
-    iou = ((x2 - x1) * (y2 - y1))/((box1[2] * box1[3]) + (box2[2] * box2[3]) - ((x2 - x1) * (y2 - y1)))
-    return iou
-
-def match_detections_to_annotations(detections, annotations: list, iou_threshold=0.5):
-    matches = []
-    used_annotations = set()
-    
-    for i, (det_box, det_class, det_conf) in enumerate(zip(detections['coordinates'], detections['class'], detections['confidence'])):
-        best_iou = 0
-        best_match = -1
-        
-        for j, (ann_class, ann_x, ann_y, ann_w, ann_h) in enumerate(annotations):
-            if j in used_annotations:
-                continue
-            if int(det_class) == ann_class:
-                iou = calculate_iou(det_box, [ann_x, ann_y, ann_w, ann_h])
-                if iou > best_iou and iou >= iou_threshold:
-                    best_iou = iou
-                    best_match = j
-        
-        if best_match != -1:
-            used_annotations.add(best_match)
-            matches.append({'detection_idx': i,'iou': best_iou})
-        else:
-            matches.append({'detection_idx': i, 'iou': 0.0})
-    
-    return matches
 
 
 
