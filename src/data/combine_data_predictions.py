@@ -18,7 +18,9 @@ def combine_results(data: pd.DataFrame, predictions: dict) -> pd.DataFrame:
 
         instance_dict = instance.to_dict()
         instance_dict["conf"] = statistics.mean(prediction["confidence"]) if prediction["confidence"] != [] else 0.0
-        instance_dict["iou"] = statistics.mean(prediction["iou"]) if prediction["iou"] != [] else 0.0
+        instance_dict["iou"] = prediction["metrics"][0]["mean_iou"] 
+        instance_dict["lrp"] = prediction["metrics"][0]["lrp"]
+        instance_dict["pq"] = prediction["metrics"][0]["pq"]
 
         results[id_int] = instance_dict
 

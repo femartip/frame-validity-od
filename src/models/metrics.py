@@ -1,12 +1,14 @@
-def pq(detections, annotations: list) -> float:
+def pq(iou_tp: list, tp: int, fp: int, fn: int) -> float:
     #https://arxiv.org/pdf/1801.00868
-    iou_tp, tp, fp, fn = match_detections_to_annotations(detections, annotations)
+    if tp + 0.5*fp + 0.5*fn == 0:
+        return 0.0
     pq = sum(iou_tp)/(tp + 0.5*fp + 0.5*fn)
     return pq
 
-def lrp(detections, annotations: list, tau: float = 0.5) -> float:
+def lrp(iou_tp: list, tp: int, fp: int, fn: int, tau: float = 0.5) -> float:
     #https://arxiv.org/pdf/1807.01696
-    iou_tp, tp, fp, fn = match_detections_to_annotations(detections, annotations)
+    if tp + fp + fn == 0:
+        return 0.0
     lrp = (sum([iou/tau for iou in iou_tp]) + fp + fn)/(tp + fp + fn)
     return lrp
 
@@ -59,6 +61,24 @@ def match_detections_to_annotations(detections, annotations: list) -> tuple[list
     fn = len(annotations) - len(iou)
     return iou, tp, fp, fn
 
+def get_metrics(detections, annotations: list, metrics: list) -> dict:
+    "By default calculates only IoU score, but can calculate 'pq' and 'lrp' as well"
+    iou, tp, fp, fn = match_detections_to_annotations(detections, annotations)
+    if metrics is None:
+        return {"iou": iou}
+    
+    assert [m in ['pq', 'lrp', 'iou'] for m in metrics], "Supported metrics are 'pq' and 'lrp'"
+    results = {}
+    results["iou"] = iou
+    for metric in metrics:
+        if metric == 'pq':
+            results["pq"] = pq(iou, tp, fp, fn)
+        elif metric == 'lrp':
+            results["lrp"] = lrp(iou, tp, fp, fn)
+    return results
+
+
+
 if __name__ == "__main__":
     detections = {
         'coordinates': [[1,1,2,2], [10,10,2,2]],
@@ -69,9 +89,9 @@ if __name__ == "__main__":
         (1, 1, 1, 2, 2),
         (1, 5, 5, 2, 2)
     ]
-
-    pq_val = pq(detections, annotations)
-    lrp_val = lrp(detections, annotations, tau=0.5)
+    iou, tp, fp, fn = match_detections_to_annotations(detections, annotations)
+    pq_val = pq(iou, tp, fp, fn)
+    lrp_val = lrp(iou, tp, fp, fn, tau=0.5)
 
     assert abs(pq_val - 0.5) < 1e-6
     assert abs(lrp_val - (4/3)) < 1e-6

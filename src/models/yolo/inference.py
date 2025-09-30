@@ -39,16 +39,16 @@ def process_image(image_path: str, model, output_folder: str) -> dict:
     boxes_cls = [box.cls.cpu().numpy()[0].item() for box in results.boxes]
     
     detections = {"coordinates": boxes, "class": boxes_cls, "confidence": boxes_conf}
-    
-    matches = metrics.match_detections_to_annotations(detections, annotations)
 
-    iou_scores = []
+    ious, tp, fp, fn = metrics.match_detections_to_annotations(detections, annotations)
+
+    lrp = metrics.lrp(ious, tp, fp, fn, tau=0.5)
+    pq = metrics.pq(ious, tp, fp, fn)
+
     for i, box in enumerate(boxes):
         x, y, w, h = box
         conf = boxes_conf[i]
         cls = boxes_cls[i]
-        match = next((m for m in matches if m['detection_idx'] == i), None)
-        iou_scores.append(match['iou'] if match else 0.0)
         cv2.rectangle(image, (int(x), int(y)), (int(x + w), int(y + h)), (0, 0, 255), 2)
         cv2.putText(image, f"{cls}: {conf:.2f}", (int(x), int(y - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     
@@ -57,7 +57,12 @@ def process_image(image_path: str, model, output_folder: str) -> dict:
         x2, y2 = int(ann_x + ann_w/2), int(ann_y + ann_h/2)
         cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-    detections["iou"] = iou_scores
+    detections["iou"] = ious
+    metrics_dict = {}
+    metrics_dict["mean_iou"] = sum(ious)/len(ious) if len(ious) > 0 else 0.0
+    metrics_dict["lrp"] = lrp
+    metrics_dict["pq"] = pq
+    detections["metrics"] = [metrics_dict]
     # Save the processed image
     output_path = os.path.join(output_folder, f'{name}_detected.jpg')
     cv2.imwrite(output_path, image)

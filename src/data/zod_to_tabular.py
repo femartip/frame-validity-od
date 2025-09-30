@@ -27,7 +27,7 @@ from zod import LaneAnnotation
 import openmeteo_requests
 import requests_cache
 from retry_requests import retry
-from tenacity import retry as tenacity_retry, wait_exponential
+from tenacity import retry as tenacity_retry, wait_exponential, stop_after_delay, RetryError
 
 import cv2
 import sys
@@ -37,21 +37,76 @@ from brisque import score as brisque_score
 import torch
 from torchmetrics import multimodal
 
-DATA_DIR = "./data/metafeatures_1.csv"
+DATA_DIR = "./data/metafeatures.csv"
+WEATHER_API_TIMEOUT_SECONDS = 300  
 
-def get_iqa(image: np.ndarray, func, *args) -> float:
+logger = logging.getLogger(__name__)
+
+"""
+clip_all_metric = multimodal.CLIPImageQualityAssessment(prompts=("quality","brightness","noisiness", "sharpness", "contrast", "complexity"))
+iqa_data = {}
+for frame_id in training_frames:
+    zod_frame = zod_frames[frame_id]
+    image = zod_frame.get_image()
+
+    scale_percent = 50 
+    width = int(image.shape[1] * scale_percent / 100)
+    height = int(image.shape[0] * scale_percent / 100)
+    dim = (width, height)
+    image = cv2.resize(image, dim)
+    
+    image = torch.from_numpy(image)
+    image = image.permute(2, 0, 1).unsqueeze(0) 
+    blur = clip_all_metric(image)
+    blur = {k:v.numpy() for k,v in blur.items()}
+    iqa_data[frame_id] = blur
+
+iqa_df = pd.DataFrame.from_dict(iqa_data, orient="index")
+print(iqa_df.head())
+"""
+
+def get_iqa(image: np.ndarray, func) -> dict[str, float] | float:
+    """Compute image quality assessment using the provided function.
+
+    Adds debug logs for input shape, function type, and resulting values.
+    """
+    logger.debug(
+        "Starting get_iqa: shape=%s, func=%s",
+        getattr(image, "shape", None), getattr(func, "__name__", type(func).__name__),
+    )
+    scale_percent = 50 
+    width = int(image.shape[1] * scale_percent / 100)
+    height = int(image.shape[0] * scale_percent / 100)
+    dim = (width, height)
+    image = cv2.resize(image, dim)
+    args = []
+
     if isinstance(func, multimodal.CLIPImageQualityAssessment):
-        image = torch.from_numpy(image)
-        image = image.permute(2, 0, 1).unsqueeze(0) 
+        image = torch.from_numpy(image)             #type: ignore
+        image = image.permute(2, 0, 1).unsqueeze(0)             #type: ignore
+    if func is cv2.Laplacian:
+        args.append(cv2.CV_64F)
 
+    logger.debug("Invoking IQA function: %s with args=%s", getattr(func, "__name__", type(func).__name__), args)
     blur = func(image, *args)
 
     if isinstance(func, multimodal.CLIPImageQualityAssessment):
-        blur = blur.numpy()
-
+        if isinstance(blur, dict):
+            blur = {k:v.numpy() for k,v in blur.items()}
+        else:
+            blur = blur.numpy()
+    elif func is cv2.Laplacian:
+        blur = blur.var()
+    else:
+        blur = blur
+    logger.debug("Finished get_iqa: result_type=%s", type(blur).__name__)
     return blur
 
-@tenacity_retry(wait=wait_exponential(multiplier=1, min=10, max=60))
+@tenacity_retry(
+    wait=wait_exponential(multiplier=1, min=10, max=60),
+    stop=stop_after_delay(WEATHER_API_TIMEOUT_SECONDS),
+    reraise=True,
+)
 def get_weather_from_api(coords: tuple[float, float], datatime_utc: pd.Timestamp) -> dict:
     """
     API day limit is 10000 requests
@@ -59,10 +114,10 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: pd.Timestamp
     """
     datatime_day = str(datatime_utc).split(" ")[0]
 
-    logging.debug(f"Getting Weather for {coords} on the {datatime_day}")
+    logger.debug("Getting weather for coords=%s date=%s", coords, datatime_day)
     cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
-    openmeteo = openmeteo_requests.Client(session = retry_session)
+    openmeteo = openmeteo_requests.Client(session = retry_session)          #type: ignore
 
     variable_names = ["temperature_2m", "relative_humidity_2m", "rain", "snowfall", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "sunshine_duration", "wind_speed_10m", "weather_code"]
     
@@ -76,34 +131,34 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: pd.Timestamp
         "timezone": "UTC"
     }
     
-    logging.debug(f"API Parameters: {params}")
+    logger.debug("API parameters: %s", params)
 
     response = openmeteo.weather_api(url, params=params)[0]
     
     if not response or not response.Hourly():
-        print("Invalid weather response received")
+        logger.warning("Invalid weather response received for coords=%s date=%s", coords, datatime_day)
         return {}
     
     hourly = response.Hourly()
 
     hourly_data = {"date": pd.date_range(
-        start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
-        end = pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
-        freq = pd.Timedelta(seconds = hourly.Interval()),
+        start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),   #type: ignore  
+        end = pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),     #type: ignore
+        freq = pd.Timedelta(seconds = hourly.Interval()),           #type: ignore
         inclusive = "left"
     )}
     for i, var_name in enumerate(variable_names):
-        variable = hourly.Variables(i)
+        variable = hourly.Variables(i)          #type: ignore
         if variable:
-            hourly_data[var_name] = variable.ValuesAsNumpy()
+            hourly_data[var_name] = variable.ValuesAsNumpy()     #type: ignore
         else:
-            print(f"Variable {i} ({var_name}) is None")
-            hourly_data[var_name] = None
+            logger.warning("Weather variable missing: index=%s name=%s", i, var_name)
+            hourly_data[var_name] = None            #type: ignore
     
     
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    weather_dict = hourly_dataframe[hourly_dataframe['date'] == datatime_utc].iloc[0].drop('date').to_dict()    
-    logging.debug(f"Weather informatio for instance {weather_dict}")
+    weather_dict = hourly_dataframe[hourly_dataframe['date'] == datatime_utc].iloc[0].drop('date').to_dict()
+    logger.debug("Weather info for instance: %s", weather_dict)
     
     return weather_dict
     
@@ -112,16 +167,21 @@ def get_data(zod_frames):
     training_frames = zod_frames.get_split(constants.TRAIN)
     validation_frames = zod_frames.get_split(constants.VAL)
 
-    logging.info(f"Number of training frames: {len(training_frames)}") 
-    logging.info(f"Number of validation frames: {len(validation_frames)}")
+    logger.info("Number of training frames: %s", len(training_frames))
+    logger.info("Number of validation frames: %s", len(validation_frames))
     return training_frames, validation_frames
 
 def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames_id: List[str]) -> tuple[dict, list]:
+    logger.debug(
+        "Starting get_caracteristics: total_training=%s num_frames=%s prev_ids=%s",
+        len(training_frames), num_frames, len(prev_frames_id) if prev_frames_id is not None else 0,
+    )
     total_frames_id = [zod_frames[frame_id].metadata.frame_id for frame_id in training_frames]
-    frames_id = list(set(total_frames_id) - set(prev_frames_id))
+    frames_id = [fid for fid in total_frames_id if fid not in prev_frames_id]
+
     if len(frames_id) > num_frames:
         frames_id = frames_id[:num_frames]
-    logging.info(f"Frames not in csv {len(frames_id)}")
+    logger.info("Frames not in csv: %s", len(frames_id))
     #print(total_frames_id)
 
     
@@ -138,63 +198,105 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         "hour": [],
     }   
 
+    logger.debug("Fields initialized in data_dict: %s", list(data_dict.keys()))
+
     for id in tqdm(frames_id):
-        data_dict["country"].append(zod_frames[id].metadata.country_code)
-        data_dict["time_of_day"].append(zod_frames[id].metadata.time_of_day)
-        data_dict["lat"].append(zod_frames[id].metadata.latitude)
-        data_dict["long"].append(zod_frames[id].metadata.longitude)
-        data_dict["road_type"].append(zod_frames[id].metadata.road_type)
-        data_dict["road_condition"].append(zod_frames[id].metadata.road_condition)
-        data_dict["weather"].append(zod_frames[id].metadata.scraped_weather) 
-        data_dict["solar_angle_elevation"].append(zod_frames[id].metadata.solar_angle_elevation)
-        #data_dict["acc"].append(zod_frames[id].ego_motion.accelerations)
-        #data_dict["ang_rates"].append(zod_frames[id].ego_motion.angular_rates)
-        #data_dict["orig_lat_lon"].append(zod_frames[id].ego_motion.origin_lat_lon)
-        #data_dict["poses"].append(zod_frames[id].ego_motion.poses)
-        #data_dict["vel"].append(zod_frames[id].ego_motion.velocities)
-        #data_dict["timestamp"].append(zod_frames[id].ego_motion.timestamps)
-        #data_dict["calid_cam"].append(zod_frames[id].calibration.cameras)
-        #data_dict["datetime"].append(str(zod_frames[id].info.keyframe_time))
-        data_dict["month"].append(zod_frames[id].info.keyframe_time.month)
-        data_dict["hour"].append(zod_frames[id].info.keyframe_time.hour)            #In UTC+0, not local time
+        logger.debug("Processing frame_id=%s", id)
+        # Collect required metadata without appending yet 
+        meta_country = zod_frames[id].metadata.country_code
+        meta_time_of_day = zod_frames[id].metadata.time_of_day
+        meta_lat = zod_frames[id].metadata.latitude
+        meta_long = zod_frames[id].metadata.longitude
+        meta_road_type = zod_frames[id].metadata.road_type
+        meta_road_condition = zod_frames[id].metadata.road_condition
+        meta_weather_label = zod_frames[id].metadata.scraped_weather
+        meta_solar_angle = zod_frames[id].metadata.solar_angle_elevation
+        meta_month = zod_frames[id].info.keyframe_time.month
+        meta_hour = zod_frames[id].info.keyframe_time.hour  # In UTC+0, not local time
 
-        weather_dict = get_weather_from_api((zod_frames[id].metadata.latitude, zod_frames[id].metadata.longitude), pd.to_datetime(str(zod_frames[id].info.keyframe_time), utc=True).round('h'))
-        data_dict.update(weather_dict)
+        try:
+            weather_dict = get_weather_from_api(
+                (meta_lat, meta_long),
+                pd.to_datetime(str(zod_frames[id].info.keyframe_time), utc=True).round('h'),
+            )
+        except RetryError:
+            logger.warning(
+                "Weather API timed out after %ss for frame_id=%s; skipping frame",
+                WEATHER_API_TIMEOUT_SECONDS,
+                id,
+            )
+            continue
+        except Exception as e:
+            logger.exception("Weather API failed for frame_id=%s: %s", id, e)
+            weather_dict = {}
+        logger.debug("Weather dict keys for frame_id=%s: %s", id, list(weather_dict.keys()))
 
+        # Append metadata only after weather call to allow skipping on timeout
+        data_dict["country"].append(meta_country)
+        data_dict["time_of_day"].append(meta_time_of_day)
+        data_dict["lat"].append(meta_lat)
+        data_dict["long"].append(meta_long)
+        data_dict["road_type"].append(meta_road_type)
+        data_dict["road_condition"].append(meta_road_condition)
+        data_dict["weather"].append(meta_weather_label)
+        data_dict["solar_angle_elevation"].append(meta_solar_angle)
+        data_dict["month"].append(meta_month)
+        data_dict["hour"].append(meta_hour)
+        for k, v in weather_dict.items():
+            if k not in data_dict:
+                data_dict[k] = []
+            data_dict[k].append(v)
+        
         zod_frame = zod_frames[id]
         image = zod_frame.get_image()
-
-        func = {"brisque":brisque_score, "quality":multimodal.CLIPImageQualityAssessment(), "brightness": multimodal.CLIPImageQualityAssessment(prompts=("brightness",)),"noisiness": multimodal.CLIPImageQualityAssessment(prompts=("noisiness",)), "sharpness": multimodal.CLIPImageQualityAssessment(prompts=("sharpness",)), "contrast": multimodal.CLIPImageQualityAssessment(prompts=("contrast",)), "complexity": multimodal.CLIPImageQualityAssessment(prompts=("complexity",))}
-        iqa = {k: get_iqa(image ,v) for k, v in func.items()}
-        data_dict.update(iqa)
-
+        logger.debug("Image fetched for frame_id=%s with shape=%s", id, getattr(image, "shape", None))
+        
+        use_fast = True
+        #func = {"brisque":brisque_score, "quality":multimodal.CLIPImageQualityAssessment(), "brightness": multimodal.CLIPImageQualityAssessment(prompts=("brightness",)),"noisiness": multimodal.CLIPImageQualityAssessment(prompts=("noisiness",)), "sharpness": multimodal.CLIPImageQualityAssessment(prompts=("sharpness",)), "contrast": multimodal.CLIPImageQualityAssessment(prompts=("contrast",)), "complexity": multimodal.CLIPImageQualityAssessment(prompts=("complexity",))}
+        func = {"laplacian":cv2.Laplacian, "clip":multimodal.CLIPImageQualityAssessment(prompts=("quality","brightness","noisiness", "sharpness", "contrast", "complexity"))}
+        iqa = {fname: get_iqa(image, f) for fname, f in func.items()}
+        logger.debug("IQA computed for frame_id=%s: keys=%s", id, list(iqa.keys()))
+        for fname, f in iqa.items():
+            if isinstance(f, dict):
+                for prompt, piqa in f.items():
+                    if prompt not in data_dict:
+                        data_dict[prompt] = []
+                    data_dict[prompt].append(piqa)
+            else:
+                if fname not in data_dict:
+                    data_dict[fname] = []
+                data_dict[fname].append(f)
+        logger.debug("Data dict sizes snapshot for frame_id=%s: %s", id, {k: len(v) for k, v in data_dict.items() if isinstance(v, list)})
     return data_dict, frames_id
 
 def to_csv(data_dict: dict[str, list], frames_id: list, resume: bool) -> None:
     base_dir = "/".join(DATA_DIR.split("/")[:-1])
     assert os.path.exists(base_dir), f"File {base_dir} does not exist, cant save csv"
     if resume:
+        logger.info("Resuming write to %s", DATA_DIR)
         prev_df = pd.read_csv(DATA_DIR, index_col=0)
-        current_df = pd.DataFrame(data=data_dict, index= frames_id)
+        current_df = pd.DataFrame(data=data_dict, index=frames_id)
+        logger.debug("Previous DF shape=%s, Current DF shape=%s", prev_df.shape, current_df.shape)
         df = pd.concat([prev_df, current_df])
         df.to_csv(DATA_DIR)
-        print(f"Data saved to {DATA_DIR}, length of dataframe {df.shape[0]}")
+        logger.info("Data saved to %s, total rows=%s", DATA_DIR, df.shape[0])
     else:
-        df = pd.DataFrame(data=data_dict, index= frames_id)
+        logger.info("Writing new CSV to %s", DATA_DIR)
+        df = pd.DataFrame(data=data_dict, index=frames_id)
+        logger.debug("New DF shape=%s", df.shape)
         df.to_csv(DATA_DIR, index=True)
-        print("New csv saved")
+        logger.info("New CSV saved: %s", DATA_DIR)
 
 def argparser() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("num_entries", type=int)
     parser.add_argument("--resume", action="store_true")
-
     args = parser.parse_args()
     return args
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.ERROR)
 
     args = argparser()
     dataset_root = "./data/zod"  
