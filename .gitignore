@@ -9,7 +9,8 @@ results/yolo/images
 results/internimage/images
 runs
 
-*.sqlite
+.cache.sqlite
+*.out
 
 # Model extensions
 *.pth
