@@ -88,29 +88,12 @@ def convert_coco(labels_dir: str,save_dir: str,use_keypoints: bool = False, copy
                 cls = list(categories.keys()).index(cat_id)
 
                 if use_keypoints and "keypoints" in ann and ann["keypoints"]:
-                    # Handle keypoints
-                    bbox = np.array(ann["bbox"], dtype=np.float64)
-                    bbox[:2] += bbox[2:] / 2  # convert to center format
-                    bbox[[0, 2]] /= w  # normalize x
-                    bbox[[1, 3]] /= h  # normalize y
-                    
-                    if bbox[2] > 0 and bbox[3] > 0:
-                        kpts = np.array(ann["keypoints"]).reshape(-1, 3)
-                        kpts[:, 0] /= w  # normalize x
-                        kpts[:, 1] /= h  # normalize y
-                        # Keep visibility as is (0=not labeled, 1=labeled but not visible, 2=labeled and visible)
-                        
-                        line = f"{cls} " + " ".join([f"{x:.6f}" for x in bbox]) + " " + \
-                               " ".join([f"{x:.6f}" for x in kpts.flatten()])
-                        lines.append(line)
-                
+                    print("WARNING: Keypoints not bbox")                
                 else:
-                    # Handle bounding boxes
                     bbox = np.array(ann["bbox"], dtype=np.float64)
-                    bbox[:2] += bbox[2:] / 2  # convert to center format
-                    bbox[[0, 2]] /= w  # normalize x
-                    bbox[[1, 3]] /= h  # normalize y
-                    
+                    bbox[:2] += bbox[2:] / 2  
+                    bbox[[0, 2]] /= w  
+                    bbox[[1, 3]] /= h  
                     if bbox[2] > 0 and bbox[3] > 0:
                         line = f"{cls} " + " ".join([f"{x:.6f}" for x in bbox])
                         lines.append(line)

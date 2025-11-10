@@ -18,17 +18,16 @@ def combine_results(data: pd.DataFrame, predictions: dict) -> pd.DataFrame:
 
         instance_dict = instance.to_dict()
         instance_dict["conf"] = statistics.mean(prediction["confidence"]) if prediction["confidence"] != [] else 0.0
-        instance_dict["iou"] = prediction["metrics"][0]["mean_iou"] 
-        instance_dict["lrp"] = prediction["metrics"][0]["lrp"]
-        instance_dict["pq"] = prediction["metrics"][0]["pq"]
-
+        instance_dict["iou"] = prediction["iou"] 
+        instance_dict["lrp"] = prediction["lrp"]
+        
         results[id_int] = instance_dict
 
     return pd.DataFrame.from_dict(results, orient="index")
 
 
 if __name__ == '__main__':
-    data_path = "./data/metafeatures.csv"
+    data_path = "./data/metafeatures2.csv"
     predictions_path = "./results/yolo/detections.json"
 
     data_df = pd.read_csv(data_path, index_col=0)
@@ -38,4 +37,4 @@ if __name__ == '__main__':
     final_df = combine_results(data_df, predictions_dict)
     print(final_df.head())
 
-    final_df.to_csv("./data/data.csv", index=True)
+    final_df.to_csv("./data/data2.csv", index=True)

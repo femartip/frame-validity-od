@@ -32,6 +32,7 @@ dependencies = [
     "torchmetrics[image] (>=1.7.3,<2.0.0)",
     "piq (>=0.8.0,<0.9.0)",
     "transformers (>=4.53.0,<5.0.0)",
+    "pycocotools (>=2.0.10,<3.0.0)",
 ]
 
 [tool.poetry]

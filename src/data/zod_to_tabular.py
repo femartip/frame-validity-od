@@ -29,6 +29,8 @@ import requests_cache
 from retry_requests import retry
 from tenacity import retry as tenacity_retry, wait_exponential, stop_after_delay, RetryError
 
+from math import atan2, degrees
+
 import cv2
 import sys
 from PIL import Image
@@ -37,33 +39,11 @@ from brisque import score as brisque_score
 import torch
 from torchmetrics import multimodal
 
-DATA_DIR = "./data/metafeatures.csv"
+DATA_DIR = "./data/metafeatures2.csv"
 WEATHER_API_TIMEOUT_SECONDS = 300  
 
 logger = logging.getLogger(__name__)
 
-"""
-clip_all_metric = multimodal.CLIPImageQualityAssessment(prompts=("quality","brightness","noisiness", "sharpness", "contrast", "complexity"))
-iqa_data = {}
-for frame_id in training_frames:
-    zod_frame = zod_frames[frame_id]
-    image = zod_frame.get_image()
-
-    scale_percent = 50 
-    width = int(image.shape[1] * scale_percent / 100)
-    height = int(image.shape[0] * scale_percent / 100)
-    dim = (width, height)
-    image = cv2.resize(image, dim)
-    
-    image = torch.from_numpy(image)
-    image = image.permute(2, 0, 1).unsqueeze(0) 
-    blur = clip_all_metric(image)
-    blur = {k:v.numpy() for k,v in blur.items()}
-    iqa_data[frame_id] = blur
-
-iqa_df = pd.DataFrame.from_dict(iqa_data, orient="index")
-print(iqa_df.head())
-"""
 
 def get_iqa(image: np.ndarray, func) -> dict[str, float] | float:
     """Compute image quality assessment using the provided function.
@@ -119,7 +99,7 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: pd.Timestamp
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)          #type: ignore
 
-    variable_names = ["temperature_2m", "relative_humidity_2m", "rain", "snowfall", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "sunshine_duration", "wind_speed_10m", "weather_code"]
+    variable_names = ["temperature_2m", "relative_humidity_2m", "rain", "snowfall", "cloud_cover", "cloud_cover_low", "cloud_cover_mid", "wind_speed_10m", "weather_code"]
     
     url = "https://archive-api.open-meteo.com/v1/archive"
     params = {
@@ -163,13 +143,20 @@ def get_weather_from_api(coords: tuple[float, float], datatime_utc: pd.Timestamp
     return weather_dict
     
 
-def get_data(zod_frames):
+
+
+def get_data(zod_frames: ZodFrames) -> tuple[list[str], list[str]]:
     training_frames = zod_frames.get_split(constants.TRAIN)
     validation_frames = zod_frames.get_split(constants.VAL)
 
+    training_frames = sorted(list(training_frames))
+    validation_frames = sorted(list(validation_frames))
     logger.info("Number of training frames: %s", len(training_frames))
     logger.info("Number of validation frames: %s", len(validation_frames))
     return training_frames, validation_frames
+
+
+
 
 def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames_id: List[str]) -> tuple[dict, list]:
     logger.debug(
@@ -196,6 +183,16 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         "solar_angle_elevation": [],
         "month": [],  
         "hour": [],
+        "forward_acceleration": [],
+        "lateral_acceleration": [],
+        "forward_velocity": [],
+        "lateral_velocity": [],
+        "field_view_horizontal": [],
+        "camera_distance_from_ground": [],
+        "camera_pitch_angle": [],
+        "distortion_magnitude": [],
+        "camera_offset": [],
+        #"focal_length": [],
     }   
 
     logger.debug("Fields initialized in data_dict: %s", list(data_dict.keys()))
@@ -213,6 +210,11 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         meta_solar_angle = zod_frames[id].metadata.solar_angle_elevation
         meta_month = zod_frames[id].info.keyframe_time.month
         meta_hour = zod_frames[id].info.keyframe_time.hour  # In UTC+0, not local time
+        meta_forward_acc = float(np.mean([a[0] * 3.6 for a in zod_frames[id].ego_motion.accelerations]))
+        meta_lateral_acc = float(np.mean([a[1] * 3.6 for a in zod_frames[id].ego_motion.accelerations]))
+        meta_forward_vel = float(np.mean([v[0] * 3.6 for v in zod_frames[id].ego_motion.velocities]))
+        meta_lateral_vel = float(np.mean([v[1] * 3.6 for v in zod_frames[id].ego_motion.velocities]))
+        cam = zod_frames[id].calibration.cameras[Camera.FRONT]
 
         try:
             weather_dict = get_weather_from_api(
@@ -242,6 +244,30 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         data_dict["solar_angle_elevation"].append(meta_solar_angle)
         data_dict["month"].append(meta_month)
         data_dict["hour"].append(meta_hour)
+        data_dict["forward_acceleration"].append(meta_forward_acc)
+        data_dict["lateral_acceleration"].append(meta_lateral_acc)
+        data_dict["forward_velocity"].append(meta_forward_vel)
+        data_dict["lateral_velocity"].append(meta_lateral_vel)
+
+        data_dict["field_view_horizontal"].append(float(cam.field_of_view[0]))
+        T = cam.extrinsics.transform 
+        data_dict["camera_distance_from_ground"].append(float(T[2, 3]))
+
+        R = T[:3, :3]
+        pitch = atan2(-R[2, 0], np.sqrt(R[2, 1]**2 + R[2, 2]**2))
+        data_dict["camera_pitch_angle"].append(degrees(pitch))
+
+        data_dict["distortion_magnitude"].append(float(np.linalg.norm(cam.distortion)))
+
+        fx, fy = cam.intrinsics[0, 0], cam.intrinsics[1, 1]
+        cx, cy = cam.intrinsics[0, 2], cam.intrinsics[1, 2]
+        w, h = cam.image_dimensions[0], cam.image_dimensions[1]
+        offset = np.sqrt((cx - w/2)**2 + (cy - h/2)**2)
+        data_dict["camera_offset"].append(float(offset))
+
+        #data_dict["focal_length"].append(float(fx / fy))
+
+        
         for k, v in weather_dict.items():
             if k not in data_dict:
                 data_dict[k] = []

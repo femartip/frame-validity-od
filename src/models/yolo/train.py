@@ -3,8 +3,8 @@ from pathlib import Path
 import tensorboard
 
 def load_model():
-    #model_path = Path("./models/yolo11s.pt")
-    model_path = Path("./models/yolo_experiments/train6/weights/best.pt")
+    model_path = Path("./models/yolo11s.pt")
+    #model_path = Path("./models/yolo_experiments/train6/weights/best.pt")
 
     if model_path.exists():
         print("Loading existing model")
@@ -22,7 +22,7 @@ def train_yolo(model):
         imgsz=1024,
         pretrained=True,
         device=0,
-        epochs=50,  # Number of training epochs
+        epochs=200,  # Number of training epochs
         batch=32,
         plots=True,
     )

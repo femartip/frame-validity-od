@@ -1,100 +1,238 @@
-def pq(iou_tp: list, tp: int, fp: int, fn: int) -> float:
-    #https://arxiv.org/pdf/1801.00868
-    if tp + 0.5*fp + 0.5*fn == 0:
-        return 0.0
-    pq = sum(iou_tp)/(tp + 0.5*fp + 0.5*fn)
-    return pq
+from __future__ import annotations
 
-def lrp(iou_tp: list, tp: int, fp: int, fn: int, tau: float = 0.5) -> float:
-    #https://arxiv.org/pdf/1807.01696
-    if tp + fp + fn == 0:
-        return 0.0
-    lrp = (sum([iou/tau for iou in iou_tp]) + fp + fn)/(tp + fp + fn)
-    return lrp
+from typing import Iterable, Sequence
 
-def calculate_iou(box1: list[int], box2: list[int]) -> float:
-    def center_to_corner(box):
-        x_center, y_center, width, height = box
-        x1 = x_center - width / 2
-        y1 = y_center - height / 2  
-        x2 = x_center + width / 2
-        y2 = y_center + height / 2
-        return [x1, y1, x2, y2]
-    
-    box1_corner = center_to_corner(box1)
-    box2_corner = center_to_corner(box2)
-    
-    x1 = max(box1_corner[0], box2_corner[0])
-    y1 = max(box1_corner[1], box2_corner[1])
-    x2 = min(box1_corner[2], box2_corner[2])
-    y2 = min(box1_corner[3], box2_corner[3])
-    
-    if x2 <= x1 or y2 <= y1:
-        return 0.0
-    
-    iou = ((x2 - x1) * (y2 - y1))/((box1[2] * box1[3]) + (box2[2] * box2[3]) - ((x2 - x1) * (y2 - y1)))
-    return iou
+import torch
+from torch import Tensor
+from torchmetrics import Metric
+from torchmetrics.detection import MeanAveragePrecision, IntersectionOverUnion
+from torchvision.ops import box_convert, box_iou
+import numpy as np
 
-def match_detections_to_annotations(detections, annotations: list) -> tuple[list, int, int, int]:
-    iou = []
-    used_annotations = set()
-    
-    for i, (det_box, det_class, det_conf) in enumerate(zip(detections['coordinates'], detections['class'], detections['confidence'])):
-        best_iou = 0
-        best_match = -1
-        
-        for j, (ann_class, ann_x, ann_y, ann_w, ann_h) in enumerate(annotations):
-            if j in used_annotations:
+class LocalizationRecallPrecision(Metric):
+    """TorchMetrics-compatible implementation of the Localization Recall Precision (LRP) error."""
+    def __init__(self, tau: float = 0.5, box_format: str = "xyxy", **kwargs) -> None:
+        super().__init__(**kwargs)
+        assert 0.0 < tau < 1.0, f"IoU threshold `tau` must lie in (0, 1). Got {tau}"
+        assert box_format in {"xyxy", "xywh", "cxcywh"}, f"Unsupported `box_format`: {box_format}"
+
+        self.tau = tau
+        self.box_format = box_format
+
+        self.add_state("loc_error", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("fp_total", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("fn_total", default=torch.tensor(0.0), dist_reduce_fx="sum")
+        self.add_state("tp_total", default=torch.tensor(0.0), dist_reduce_fx="sum")
+
+    def update(
+        self,
+        preds: Sequence[dict[str, Tensor]] | dict[str, Tensor],
+        target: Sequence[dict[str, Tensor]] | dict[str, Tensor],
+    ) -> None:
+        preds_list = self._ensure_sequence(preds)
+        target_list = self._ensure_sequence(target)
+        assert len(preds_list) == len(target_list), "Number of predictions and targets must match."
+
+        for pred_dict, target_dict in zip(preds_list, target_list):
+            loc_error, fp, fn, tp = self._process_single(pred_dict, target_dict)
+            self.loc_error += loc_error
+            self.fp_total += fp
+            self.fn_total += fn
+            self.tp_total += tp
+
+    def compute(self) -> Tensor:
+        total = self.tp_total + self.fp_total + self.fn_total  #type: ignore
+        assert total > 0, "Error, tp + fp + fn cannot be zero when computing LRP."
+
+        loc_term = torch.tensor(0.0)
+        if self.tp_total > 0:
+            loc_term = self.loc_error / (1.0 - self.tau)
+
+        lrp_error = (loc_term + self.fp_total + self.fn_total) / total
+        return torch.clamp(lrp_error, min=0.0, max=1.0)
+
+    def _process_single(
+        self,
+        pred_dict: dict[str, Tensor],
+        target_dict: dict[str, Tensor],
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+        pred_boxes = self._prepare_boxes(pred_dict.get("boxes"))
+        pred_scores = self._prepare_scores(pred_dict.get("scores"), len(pred_boxes))
+        pred_labels = self._prepare_labels(pred_dict.get("labels"))
+        target_boxes = self._prepare_boxes(target_dict.get("boxes"))
+        target_labels = self._prepare_labels(target_dict.get("labels"))
+
+        all_classes = torch.cat([pred_labels.unique(), target_labels.unique()], dim=0).unique()
+
+        loc_error = torch.tensor(0.0)
+        fp = torch.tensor(0.0)
+        fn = torch.tensor(0.0)
+        tp = torch.tensor(0.0)
+
+        for cls in all_classes:
+            cls_pred_mask = pred_labels == cls
+            cls_target_mask = target_labels == cls
+
+            cls_pred_boxes = pred_boxes[cls_pred_mask]
+            cls_pred_scores = pred_scores[cls_pred_mask]
+            cls_target_boxes = target_boxes[cls_target_mask]
+
+            order = torch.argsort(cls_pred_scores, descending=True)
+            cls_pred_boxes = cls_pred_boxes[order]
+
+            ious = box_iou(cls_pred_boxes, cls_target_boxes)
+            matched_targets = torch.zeros(len(cls_target_boxes), dtype=torch.bool)
+
+            for i in range(len(cls_pred_boxes)):
+                iou_vals = ious[i]
+                if iou_vals.numel() == 0:
+                    fp += 1.0
+                    continue
+                max_iou, gt_idx = iou_vals.max(dim=0)
+                if max_iou >= self.tau and not matched_targets[gt_idx]:
+                    matched_targets[gt_idx] = True
+                    tp += 1.0
+                    loc_error += 1.0 - max_iou
+                else:
+                    fp += 1.0
+
+            fn += torch.tensor(float((~matched_targets).sum().item()))
+
+        return loc_error, fp, fn, tp
+
+    @staticmethod
+    def _ensure_sequence(data: Sequence[dict[str, Tensor]] | dict[str, Tensor] | None) -> list[dict[str, Tensor]]:
+        if data is None:
+            return []
+        if isinstance(data, dict):
+            return [data]
+        return list(data)
+
+    def _prepare_boxes(self, boxes: Tensor | Iterable[Sequence[float]] | None) -> Tensor:
+        if boxes is None:
+            return torch.zeros((0, 4), dtype=torch.float32)
+        tensor_boxes = torch.as_tensor(boxes, dtype=torch.float32)
+        if tensor_boxes.ndim != 2 or tensor_boxes.size(-1) != 4:
+            msg = f"Boxes must have shape (N, 4). Got {tensor_boxes.shape}"
+            raise ValueError(msg)
+        if tensor_boxes.numel() == 0:
+            return tensor_boxes
+        if self.box_format != "xyxy":
+            tensor_boxes = box_convert(tensor_boxes, in_fmt=self.box_format, out_fmt="xyxy")
+        return tensor_boxes
+
+    @staticmethod
+    def _prepare_scores(scores: Tensor | Iterable[float] | None, num_boxes: int) -> Tensor:
+        if scores is None:
+            return torch.ones(num_boxes, dtype=torch.float32)
+        tensor_scores = torch.as_tensor(scores, dtype=torch.float32)
+        if tensor_scores.ndim != 1:
+            msg = f"Scores must be a 1-D tensor. Got {tensor_scores.shape}"
+            raise ValueError(msg)
+        if len(tensor_scores) != num_boxes:
+            msg = "Number of scores must match number of boxes."
+            raise ValueError(msg)
+        return tensor_scores
+
+    @staticmethod
+    def _prepare_labels(labels: Tensor | Iterable[int] | None) -> Tensor:
+        if labels is None:
+            return torch.zeros(0, dtype=torch.long)
+        tensor_labels = torch.as_tensor(labels, dtype=torch.long)
+        if tensor_labels.ndim != 1:
+            msg = f"Labels must be a 1-D tensor. Got {tensor_labels.shape}"
+            raise ValueError(msg)
+        return tensor_labels
+
+@torch.no_grad()
+def matched_iou(preds, targets):
+    all_ious = []
+    n_images = max(len(preds), len(targets))
+
+    for i in range(n_images):
+        p = preds[i] if i < len(preds) else {"boxes": torch.zeros((0, 4)), "labels": torch.zeros(0, dtype=torch.long), "scores": torch.zeros(0)}
+        t = targets[i] if i < len(targets) else {"boxes": torch.zeros((0, 4)), "labels": torch.zeros(0, dtype=torch.long)}
+        if p["boxes"].numel() == 0 or t["boxes"].numel() == 0:
+            continue
+
+        p_boxes = p["boxes"].float()
+        p_labels = p["labels"].long()
+        p_scores = p["scores"].float()
+        t_boxes = t["boxes"].float()
+        t_labels = t["labels"].long()
+
+        classes = torch.cat([p_labels, t_labels]).unique()
+        for c in classes.tolist():
+            det_mask = (p_labels == c)
+            gt_mask  = (t_labels == c)
+            if det_mask.sum() == 0 or gt_mask.sum() == 0:
                 continue
-            if int(det_class) == ann_class:
-                inst_iou = calculate_iou(det_box, [ann_x, ann_y, ann_w, ann_h])
-                if inst_iou > best_iou and inst_iou:
-                    best_iou = inst_iou
-                    best_match = j
-        
-        if best_match != -1:
-            used_annotations.add(best_match)
-            iou.append(best_iou)
-        
-    tp = len(iou)
-    fp = len(detections['coordinates']) - len(iou)
-    fn = len(annotations) - len(iou)
-    return iou, tp, fp, fn
 
-def get_metrics(detections, annotations: list, metrics: list) -> dict:
-    "By default calculates only IoU score, but can calculate 'pq' and 'lrp' as well"
-    iou, tp, fp, fn = match_detections_to_annotations(detections, annotations)
+            d_boxes = p_boxes[det_mask]
+            d_scores = p_scores[det_mask]
+            g_boxes = t_boxes[gt_mask]
+
+            order = torch.argsort(d_scores, descending=True) # sort detections by confidence desc 
+            d_boxes = d_boxes[order]
+            ious = box_iou(d_boxes, g_boxes) 
+            gt_taken = torch.zeros(g_boxes.size(0), dtype=torch.bool, device=ious.device)
+
+            for di in range(ious.size(0)):
+                iou_row = ious[di]
+                iou_row = iou_row.masked_fill(gt_taken, -1.0)
+                best_iou, best_j = torch.max(iou_row, dim=0)
+                if best_iou >= 0.0:
+                    all_ious.append(best_iou.item())
+                    gt_taken[best_j] = True 
+    if len(all_ious) == 0:
+        return 0.0
+    return float(sum(all_ious) / len(all_ious))
+
+
+def get_metrics(detections: list[dict], annotations: list[dict], metrics: list | None) -> dict:
     if metrics is None:
-        return {"iou": iou}
-    
-    assert [m in ['pq', 'lrp', 'iou'] for m in metrics], "Supported metrics are 'pq' and 'lrp'"
+        metrics = ["iou"]
+    allowed = {"lrp", "iou"}
+    assert all(m in allowed for m in metrics), f"Unsupported metric(s): {set(metrics) - allowed}"
+
     results = {}
-    results["iou"] = iou
-    for metric in metrics:
-        if metric == 'pq':
-            results["pq"] = pq(iou, tp, fp, fn)
-        elif metric == 'lrp':
-            results["lrp"] = lrp(iou, tp, fp, fn)
+
+    if "iou" in metrics:
+        iou_out = matched_iou(detections, annotations)
+        results["iou"] = iou_out
+    
+    if "lrp" in metrics:
+        lrp_metric = LocalizationRecallPrecision(tau=0.5, box_format="xyxy")
+        lrp_metric.update(detections, annotations)
+        lrp_out = lrp_metric.compute()
+        results["lrp"] = 1.0 - float(lrp_out)  # lower is better
+
     return results
 
 
-
 if __name__ == "__main__":
-    detections = {
-        'coordinates': [[1,1,2,2], [10,10,2,2]],
-        'class':      [1,       1],
-        'confidence': [0.9,     0.8]
-    }
-    annotations = [
-        (1, 1, 1, 2, 2),
-        (1, 5, 5, 2, 2)
+    detections = [
+        {
+            "boxes": torch.tensor([[1, 1, 2, 2]], dtype=torch.float32),
+            "labels": torch.tensor([1], dtype=torch.long),
+            "scores": torch.tensor([0.9]),
+        },
+        {
+            "boxes": torch.tensor([[10, 10, 12, 12]], dtype=torch.float32),
+            "labels": torch.tensor([1], dtype=torch.long),
+            "scores": torch.tensor([0.8]),
+        },
     ]
-    iou, tp, fp, fn = match_detections_to_annotations(detections, annotations)
-    pq_val = pq(iou, tp, fp, fn)
-    lrp_val = lrp(iou, tp, fp, fn, tau=0.5)
+    annotations = [
+        {
+            "boxes": torch.tensor([[1, 1, 2, 2]], dtype=torch.float32),
+            "labels": torch.tensor([1], dtype=torch.long),
+        },
+        {
+            "boxes": torch.tensor([[5, 5, 7, 7]], dtype=torch.float32),
+            "labels": torch.tensor([1], dtype=torch.long),
+        },
+    ]
 
-    assert abs(pq_val - 0.5) < 1e-6
-    assert abs(lrp_val - (4/3)) < 1e-6
-
-    print(pq_val)
-    print(lrp_val)
+    metrics = get_metrics(detections, annotations, metrics=["iou", "lrp"])
+    print(metrics)
