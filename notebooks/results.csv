@@ -1,0 +1,13 @@
+,target,model,test_r2,test_mae,test_mse
+0,IoU,Constant Mean Predictor,-0.0001,0.11,0.02
+1,IoU,Univariate Linear Regression (Confidence),0.3416,0.09,0.02
+2,IoU,Linear Regression,0.3519,0.09,0.02
+3,IoU,Decision Tree,-0.34,0.13,0.03
+4,IoU,Random Forest,0.3423,0.09,0.02
+5,IoU,MLP,0.0385,0.11,0.02
+6,LRP,Constant Mean Predictor,-0.0001,0.1,0.02
+7,LRP,Univariate Linear Regression (Confidence),0.4008,0.07,0.01
+8,LRP,Linear Regression,0.4205,0.07,0.01
+9,LRP,Decision Tree,-0.0781,0.1,0.02
+10,LRP,Random Forest,0.4242,0.07,0.01
+11,LRP,MLP,-0.2123,0.1,0.02

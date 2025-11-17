@@ -74,8 +74,10 @@ def process_image(image_path: str, model, output_folder: str) -> dict:
         cv2.putText(image, f"GT box", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
 
     # Save the processed image
-    output_path = os.path.join(output_folder, f'{name}_detected.jpg')
-    cv2.imwrite(output_path, image)
+    #output_path = os.path.join(output_folder, f'{name}_detected.jpg')
+    output_path = os.path.join("results/yolo/iou_0", f'{name}_detected.jpg')
+    if iou == 0.0:
+        cv2.imwrite(output_path, image)
     #print(f'Output image saved as {output_path}')
     
     return metrics_dict
