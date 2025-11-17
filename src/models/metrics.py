@@ -144,6 +144,7 @@ class LocalizationRecallPrecision(Metric):
             raise ValueError(msg)
         return tensor_labels
 
+
 @torch.no_grad()
 def matched_iou(preds, targets):
     all_ious = []
@@ -165,7 +166,14 @@ def matched_iou(preds, targets):
         for c in classes.tolist():
             det_mask = (p_labels == c)
             gt_mask  = (t_labels == c)
-            if det_mask.sum() == 0 or gt_mask.sum() == 0:
+            det_count = int(det_mask.sum().item())
+            gt_count = int(gt_mask.sum().item())
+
+            if det_count == 0:
+                all_ious.extend([0.0] * gt_count)
+                continue
+            if gt_count == 0:
+                all_ious.extend([0.0] * det_count)
                 continue
 
             d_boxes = p_boxes[det_mask]
@@ -178,15 +186,19 @@ def matched_iou(preds, targets):
             gt_taken = torch.zeros(g_boxes.size(0), dtype=torch.bool, device=ious.device)
 
             for di in range(ious.size(0)):
-                iou_row = ious[di]
-                iou_row = iou_row.masked_fill(gt_taken, -1.0)
+                iou_row = ious[di].masked_fill(gt_taken, -1.0) # ignore already taken GT
                 best_iou, best_j = torch.max(iou_row, dim=0)
-                if best_iou >= 0.0:
+                if best_iou > 0.0: #TP
                     all_ious.append(best_iou.item())
                     gt_taken[best_j] = True 
+                else:
+                    #FP asigned to 0 IoU
+                    all_ious.append(0.0)
 
-            #FN and FP should have IoU of 0, also should assign 0 to conf of model as it did not detect anything
-            #TODO
+            #FN asigned to 0 IoU
+            fn_count = int((~gt_taken).sum().item())
+            if fn_count:
+                all_ious.extend([0.0] * fn_count)
     if len(all_ious) == 0:
         return 0.0
     return float(sum(all_ious) / len(all_ious))
