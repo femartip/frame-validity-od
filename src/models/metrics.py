@@ -184,6 +184,9 @@ def matched_iou(preds, targets):
                 if best_iou >= 0.0:
                     all_ious.append(best_iou.item())
                     gt_taken[best_j] = True 
+
+            #FN and FP should have IoU of 0, also should assign 0 to conf of model as it did not detect anything
+            #TODO
     if len(all_ious) == 0:
         return 0.0
     return float(sum(all_ious) / len(all_ious))
