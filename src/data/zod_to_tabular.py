@@ -39,7 +39,7 @@ from brisque import score as brisque_score
 import torch
 from torchmetrics import multimodal
 
-DATA_DIR = "./data/metafeatures2.csv"
+DATA_DIR = "./data/metafeatures.csv"
 WEATHER_API_TIMEOUT_SECONDS = 300  
 
 logger = logging.getLogger(__name__)
