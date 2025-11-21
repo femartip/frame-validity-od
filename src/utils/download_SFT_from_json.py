@@ -13,16 +13,26 @@ def download_entry(entry):
     try:
         rel_path = entry['key']
         download_url = entry['url']
-        
         local_filepath = Path(OUTPUT_DIR) / rel_path
+
+        if "history" in rel_path or "lidar" in rel_path or "radar" in rel_path:
+            return
         
         if rel_path.endswith('/'):
             local_filepath.mkdir(parents=True, exist_ok=True)
-            return 
+            return
         
         local_filepath.parent.mkdir(parents=True, exist_ok=True)
 
         response = requests.get(download_url, stream=True)
+        total_size = int(response.headers.get('content-length', 0))
+        
+        if local_filepath.exists():
+            local_size = local_filepath.stat().st_size
+            if local_size == total_size and total_size > 0:
+                response.close()
+                return 
+            
         response.raise_for_status() # Check for HTTP errors
 
 

@@ -71,10 +71,7 @@ def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor
     clear_memory()
     
     # Prepare the text input by applying the chat template
-    text_input = processor.apply_chat_template(
-        sample['messages'][1:2],  # Use the sample without the system message
-        add_generation_prompt=True
-    )
+    text_input = processor.apply_chat_template(sample['messages'][1:2], add_generation_prompt=True)
 
     image_inputs = []
     image = sample['images'][0]
@@ -84,27 +81,16 @@ def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor
     image_inputs.append([image])
 
     # Prepare the inputs for the model
-    model_inputs = processor(
-        #text=[text_input],
-        text=text_input,
-        images=image_inputs,
-        return_tensors="pt",
-    ).to(device)  # Move inputs to the specified device
+    model_inputs = processor(text=text_input,images=image_inputs,return_tensors="pt",).to(device)  # Move inputs to the specified device
 
     # Generate text with the model
     generated_ids = model.generate(**model_inputs, max_new_tokens=max_new_tokens)
 
     # Trim the generated ids to remove the input ids
-    trimmed_generated_ids = [
-        out_ids[len(in_ids):] for in_ids, out_ids in zip(model_inputs.input_ids, generated_ids)
-    ]
+    trimmed_generated_ids = [out_ids[len(in_ids):] for in_ids, out_ids in zip(model_inputs.input_ids, generated_ids)]
 
     # Decode the output text
-    output_text = processor.batch_decode(
-        trimmed_generated_ids,
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False
-    )
+    output_text = processor.batch_decode(trimmed_generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
     clear_memory()
     return output_text[0]
 
@@ -117,10 +103,7 @@ def generate_text_from_batch(model, processor, batch_samples: list, max_new_toke
     for sample in batch_samples:
         # Prepare text (Chat Template)
         # using [1:2] to grab the user message, skipping system prompt
-        prompt = processor.apply_chat_template(
-            sample['messages'][1:2], 
-            add_generation_prompt=True
-        )
+        prompt = processor.apply_chat_template(sample['messages'][1:2], add_generation_prompt=True)
         text_inputs.append(prompt)
 
         # Prepare image
@@ -132,28 +115,17 @@ def generate_text_from_batch(model, processor, batch_samples: list, max_new_toke
 
     # 2. Tokenize and Pad Batch
     # padding=True is critical here to handle different sequence lengths in one batch
-    model_inputs = processor(
-        text=text_inputs,
-        images=image_inputs,
-        return_tensors="pt",
-        padding=True 
-    ).to(device)
+    model_inputs = processor(text=text_inputs, images=image_inputs, return_tensors="pt", padding=True).to(device)
 
     # 3. Generate
     generated_ids = model.generate(**model_inputs, max_new_tokens=max_new_tokens)
 
     # 4. Trim input tokens from output (Batched approach)
     # We zip input_ids and generated_ids to slice each row individually
-    trimmed_generated_ids = [
-        out_ids[len(in_ids):] for in_ids, out_ids in zip(model_inputs.input_ids, generated_ids)
-    ]
+    trimmed_generated_ids = [out_ids[len(in_ids):] for in_ids, out_ids in zip(model_inputs.input_ids, generated_ids)]
 
     # 5. Decode Batch
-    output_texts = processor.batch_decode(
-        trimmed_generated_ids,
-        skip_special_tokens=True,
-        clean_up_tokenization_spaces=False
-    )
+    output_texts = processor.batch_decode(trimmed_generated_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)
 
     return output_texts
 
@@ -239,8 +211,7 @@ def fine_tune(train_dataset: list, eval_dataset: list, validity_metric: str ="io
     peft_config = LoraConfig(r=8, lora_alpha=8, lora_dropout=0.1,target_modules=['down_proj','o_proj','k_proj','q_proj','gate_proj','up_proj','v_proj'], use_dora=True, init_lora_weights="gaussian")  #qlora tuning config
     #peft_model = get_peft_model(model, peft_config)     # Apply PEFT model adaptation
     #print(peft_model.print_trainable_parameters())            
-
-
+    
     training_args = SFTConfig(
         output_dir=f"models/assessors/smolvlm-{validity_metric}",
         num_train_epochs=1,
@@ -329,5 +300,5 @@ if __name__ == "__main__":
     #print("Generated output:", output)
 
     #fine_tune(train_dataset, eval_dataset, validity_metric=TARGET_METRIC)
-    test(test_dataset, validity_metric=TARGET_METRIC, batch_size=64)
+    test(test_dataset, validity_metric=TARGET_METRIC, batch_size=16)
     
