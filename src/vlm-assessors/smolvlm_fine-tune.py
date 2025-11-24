@@ -1,4 +1,5 @@
 import torch
+from torch.utils.data import DataLoader, Dataset
 from huggingface_hub import login
 from transformers import Idefics3ForConditionalGeneration, AutoProcessor, BitsAndBytesConfig, TrainerCallback
 import gc
@@ -16,6 +17,7 @@ from sklearn.metrics import r2_score
 from dotenv import load_dotenv
 
 SEED = 43
+DEVICE = "cuda:1"
 np.random.seed(SEED)
 
 load_dotenv()
@@ -29,7 +31,19 @@ class TrackioCallback(TrainerCallback):
         if logs:
             trackio.log(logs)
 
-def format_data(img: Image.Image, conf: float, validity_metric: float) -> dict:
+class ImageDataset(Dataset):
+    def __init__(self, data_list):
+        self.data = data_list
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        return self.data[idx]
+
+def format_data(img: Image.Image, conf: float, validity_metric: float, val_metric_text: str = "iou") -> dict:
+    #if val_metric_text == 'iou':
+    #    val_metric_text = "Intersection Over Union"
+    #elif val_metric_text == 'lrp':
+    #    val_metric_text = "Localization Recall Precision"
     return {
       "images": [img],
       "messages": [
@@ -38,20 +52,58 @@ def format_data(img: Image.Image, conf: float, validity_metric: float) -> dict:
             "content": [
                 {
                     "type": "text",
-                    "text": "Predict the performance of the given object detection configuration on the provided image. Respond with a single numerical value representing the validity metric.",
+                    "text": """You are an autonomous-driving perception assessor.
+
+Your task is to evaluate the expected performance of an object-detection model on a given driving scene.
+
+The user will provide:
+1. An image from an on-board camera.
+2. A short textual description containing the model’s mean confidence score.
+
+Your job:
+- Examine the image.
+- Consider the provided mean confidence.
+- Infer the expected validity metric of the detection configuration. The validity metric is a continuous value in the range [0, 1].
+
+When assessing validity, pay special attention to:
+- Lighting conditions (night, glare, backlight)
+- Weather (rain, fog, low visibility)
+- Occlusions
+- Scene complexity (traffic density, intersections)
+- Small or distant objects that are hard to detect
+- Motion blur
+- Unusual object appearances or rare cases
+
+Use these visual cues to determine difficulty. The confidence score alone is not sufficient.
+
+STRICT OUTPUT REQUIREMENTS:
+- Respond with **only one numeric value**.
+- The number must be in the range [0, 1].
+- Do NOT include text, units, symbols, or explanations.
+
+Your response must contain only that number and nothing else.
+""",
                 }
             ],
         },
         {
             "role": "user",
             "content": [
+                {"type": "text",
+                 "text": "Below is the driving scene image and the summary of the model output."},
                 {
                     "type": "image",
                     "image": img,
                 },
                 {
                     "type": "text",
-                    "text": f"Given the above image, our object detection model has a mean confidence score of {conf:.4f}. What is the expected validity metric for this configuration?",
+                    "text": f"""Model summary:
+- Mean confidence of all detections: {conf:.4f}.
+
+Based on the visual difficulty of the scene and the given confidence, what is the expected validity metric for this detection configuration?
+
+Remember: output only a single number in [0,1].
+""",
                 }
             ],
         },
@@ -95,7 +147,7 @@ def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor
     return output_text[0]
 
 
-def generate_text_from_batch(model, processor, batch_samples: list, max_new_tokens: int = 1024, device: str = "cuda:0") -> list[str]:
+def generate_text_from_batch(model, processor, batch_samples: list, max_new_tokens: int = 1024, device: str = "cuda:1") -> list[str]:
     text_inputs = []
     image_inputs = []
 
@@ -159,13 +211,16 @@ def test(test_dataset: list, validity_metric: str ="iou", batch_size: int = 4) -
     processor = AutoProcessor.from_pretrained(model_id)
     adapter_path = f"models/assessors/smolvlm-{validity_metric}"
     model.load_adapter(adapter_path)
+    model.eval()
+
+    loader = DataLoader(ImageDataset(test_dataset), batch_size=batch_size, shuffle=False, num_workers=4,collate_fn=lambda x: x)
 
     y = []
     y_pred = []
-    for i in tqdm(range(0, len(test_dataset), batch_size)):
-        batch_samples = test_dataset[i:i+batch_size]
+    print(f"Starting inference on {len(test_dataset)}.")
+    for batch_samples in tqdm(loader):
+        generated_texts = generate_text_from_batch(model, processor, batch_samples, max_new_tokens=15)
 
-        generated_texts = generate_text_from_batch(model, processor, batch_samples)
         for j, sample in enumerate(batch_samples):
             true_value = sample['messages'][-1]['content'][0]['text']
             gen_text = generated_texts[j] 
@@ -184,11 +239,10 @@ def test(test_dataset: list, validity_metric: str ="iou", batch_size: int = 4) -
         r_2 = r2_score(np.array(y), np.array(y_pred))
         mae = np.mean(np.abs(np.array(y) - np.array(y_pred)))
         mse = np.mean((np.array(y) - np.array(y_pred)) ** 2)
-        print(f"Batch {i} Test R2: {r_2:.4f}")
-        print(f"Batch {i} Test MAE: {mae:.4f}")
-        print(f"Batch {i} Test MSE: {mse:.4f}")
+        print(f"Batch Test R2: {r_2:.4f}")
+        print(f"Batch Test MAE: {mae:.4f}")
+        print(f"Batch Test MSE: {mse:.4f}")
     
-        clear_memory(print_stats=False)
     y = np.array(y)
     y_pred = np.array(y_pred)
     r_2 = r2_score(y, y_pred)
@@ -202,13 +256,15 @@ def test(test_dataset: list, validity_metric: str ="iou", batch_size: int = 4) -
     
 
 def fine_tune(train_dataset: list, eval_dataset: list, validity_metric: str ="iou") -> None:
+    clear_memory()
     model_id = "HuggingFaceTB/SmolVLM-Instruct"
 
     bnb_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16) #load quant version 
-    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map="auto", torch_dtype=torch.bfloat16, quantization_config=bnb_config, _attn_implementation="flash_attention_2",) # Load model and tokenizer
+    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map=DEVICE, torch_dtype=torch.bfloat16, quantization_config=bnb_config, _attn_implementation="flash_attention_2",) # Load model and tokenizer
+    model.gradient_checkpointing_enable() 
     processor = AutoProcessor.from_pretrained(model_id)
 
-    peft_config = LoraConfig(r=8, lora_alpha=8, lora_dropout=0.1,target_modules=['down_proj','o_proj','k_proj','q_proj','gate_proj','up_proj','v_proj'], use_dora=True, init_lora_weights="gaussian")  #qlora tuning config
+    peft_config = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,target_modules=['down_proj','o_proj','k_proj','q_proj','gate_proj','up_proj','v_proj'], use_dora=True, init_lora_weights="gaussian", bias="none",task_type="CAUSAL_LM")  #qlora tuning config
     #peft_model = get_peft_model(model, peft_config)     # Apply PEFT model adaptation
     #print(peft_model.print_trainable_parameters())            
     
@@ -217,12 +273,16 @@ def fine_tune(train_dataset: list, eval_dataset: list, validity_metric: str ="io
         num_train_epochs=1,
         per_device_train_batch_size=8,
         gradient_accumulation_steps=4,
-        warmup_steps=50,
-        learning_rate=1e-4,
+        dataloader_num_workers=4,
+        dataloader_pin_memory=True,
+        group_by_length=False,
+        gradient_checkpointing=True,
+        warmup_ratio=0.03,
+        learning_rate=2e-4,
         weight_decay=0.01,
-        logging_steps=25,
+        logging_steps=10,
         save_strategy="steps",
-        save_steps=25,
+        save_steps=50,
         save_total_limit=1,
         optim="adamw_torch_fused",
         bf16=True,
@@ -240,7 +300,7 @@ def fine_tune(train_dataset: list, eval_dataset: list, validity_metric: str ="io
         eval_dataset=eval_dataset,
         peft_config=peft_config,
         processing_class=processor,
-        callbacks=[TrackioCallback()]
+        callbacks=[TrackioCallback()],
     )
 
     trainer.train()
@@ -299,6 +359,6 @@ if __name__ == "__main__":
     #output = generate_text_from_sample(test_dataset[0])
     #print("Generated output:", output)
 
-    #fine_tune(train_dataset, eval_dataset, validity_metric=TARGET_METRIC)
+    fine_tune(train_dataset, eval_dataset, validity_metric=TARGET_METRIC)
     test(test_dataset, validity_metric=TARGET_METRIC, batch_size=16)
     

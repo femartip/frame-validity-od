@@ -27,7 +27,7 @@ def combine_results(data: pd.DataFrame, predictions: dict) -> pd.DataFrame:
 
 
 if __name__ == '__main__':
-    data_path = "./data/metafeatures2.csv"
+    data_path = "./data/metafeatures.csv"
     predictions_path = "./results/yolo/detections.json"
 
     data_df = pd.read_csv(data_path, index_col=0)
@@ -37,4 +37,4 @@ if __name__ == '__main__':
     final_df = combine_results(data_df, predictions_dict)
     print(final_df.head())
 
-    final_df.to_csv("./data/data2.csv", index=True)
+    final_df.to_csv("./data/data.csv", index=True)
