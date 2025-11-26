@@ -2,7 +2,6 @@
 path: /home/felix/Predictability-AD/data/zod_yolo
 train: images/train
 val: images/val
-test: images/test
 
 # Classes
 names:

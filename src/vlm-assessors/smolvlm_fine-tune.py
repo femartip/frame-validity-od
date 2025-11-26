@@ -17,7 +17,8 @@ from sklearn.metrics import r2_score
 from dotenv import load_dotenv
 
 SEED = 43
-DEVICE = "cuda:1"
+#DEVICE = "cuda:1"
+#DEVICE_INDEX = 1
 np.random.seed(SEED)
 
 load_dotenv()
@@ -260,11 +261,11 @@ def fine_tune(train_dataset: list, eval_dataset: list, validity_metric: str ="io
     model_id = "HuggingFaceTB/SmolVLM-Instruct"
 
     bnb_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16) #load quant version 
-    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map=DEVICE, torch_dtype=torch.bfloat16, quantization_config=bnb_config, _attn_implementation="flash_attention_2",) # Load model and tokenizer
+    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map="auto", torch_dtype=torch.bfloat16, quantization_config=bnb_config, _attn_implementation="flash_attention_2",) # Load model and tokenizer
     model.gradient_checkpointing_enable() 
     processor = AutoProcessor.from_pretrained(model_id)
 
-    peft_config = LoraConfig(r=16, lora_alpha=32, lora_dropout=0.05,target_modules=['down_proj','o_proj','k_proj','q_proj','gate_proj','up_proj','v_proj'], use_dora=True, init_lora_weights="gaussian", bias="none",task_type="CAUSAL_LM")  #qlora tuning config
+    peft_config = LoraConfig(r=8, lora_alpha=32, lora_dropout=0.05,target_modules=['down_proj','o_proj','k_proj','q_proj','gate_proj','up_proj','v_proj'], use_dora=True, init_lora_weights="gaussian", bias="none",task_type="CAUSAL_LM")  #qlora tuning config
     #peft_model = get_peft_model(model, peft_config)     # Apply PEFT model adaptation
     #print(peft_model.print_trainable_parameters())            
     

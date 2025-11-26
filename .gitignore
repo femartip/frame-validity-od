@@ -9,6 +9,8 @@ data/zod_yolo/labels
 models/assessors
 models/yolo_experiments
 
+InternImage
+
 results/yolo/images
 results/internimage/images
 runs

@@ -21,9 +21,12 @@ def train_yolo(model):
         project="./models/yolo_experiments/",
         imgsz=1024,
         pretrained=True,
-        device=0,
+        seed=43,
+        fraction=0.8,
+        device=[0,1],
+        workers=2,
         epochs=200,  # Number of training epochs
-        batch=32,
+        batch=64,
         plots=True,
     )
 
