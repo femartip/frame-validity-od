@@ -1,3 +1,8 @@
+"""
+Script from Renault. Did not modify.
+"""
+
+
 import argparse
 import os
 import torch 
@@ -7,7 +12,7 @@ import numpy as np
 import mmcv
 import sys
 
-from config_me import get_config
+from .config_me import get_config
 from InternImage.classification.models import build_model
 import torch.nn.functional as F
 

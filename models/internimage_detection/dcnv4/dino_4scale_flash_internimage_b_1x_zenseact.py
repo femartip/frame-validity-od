@@ -1,5 +1,5 @@
 dataset_type = 'CocoDataset'
-data_root = '/media/data_drive/datasets/zenseact/'
+data_root = '~/Predictability-AD/data/zod/single_frames/'
 classes = ('TrafficSign', )
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
@@ -78,7 +78,7 @@ data = dict(
     train=dict(
         type='CocoDataset',
         classes=('TrafficSign', ),
-        ann_file='/media/data_drive/datasets/zenseact/zod_full_TS_train.json',
+        ann_file='~/Predictability-AD/data/zod_coco/zod_full_Anonymization.BLUR_train.json',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(type='LoadAnnotations', with_bbox=True),
@@ -136,7 +136,7 @@ data = dict(
     val=dict(
         type='CocoDataset',
         classes=('TrafficSign', ),
-        ann_file='/media/data_drive/datasets/zenseact/zod_full_TS_val.json',
+        ann_file='~/Predictability-AD/data/zod_coco/zod_full_Anonymization.BLUR_val.json',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -159,7 +159,7 @@ data = dict(
     test=dict(
         type='CocoDataset',
         classes=('TrafficSign', ),
-        ann_file='/media/data_drive/datasets/zenseact/zod_full_TS_val.json',
+        ann_file='~/Predictability-AD/data/zod_coco/zod_full_Anonymization.BLUR_val.json',
         pipeline=[
             dict(type='LoadImageFromFile'),
             dict(
@@ -302,6 +302,6 @@ model = dict(
             reg_cost=dict(type='BBoxL1Cost', weight=5.0, box_format='xywh'),
             iou_cost=dict(type='IoUCost', iou_mode='giou', weight=2.0))),
     test_cfg=dict(max_per_img=300))
-work_dir = '/media/data_drive3/outputsTrafficSign/train2d_flashinternimage'
+work_dir = './Predictability-AD'
 auto_resume = False
 gpu_ids = [0]
