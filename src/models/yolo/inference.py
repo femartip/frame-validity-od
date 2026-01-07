@@ -12,7 +12,7 @@ import numpy as np
 
 def load_model():
     #model_path = Path("./models/yolo11s.pt")
-    model_path = Path("./models/yolo_experiments/train6/weights/best.pt")
+    model_path = Path("./models/yolo_experiments/train/weights/best.pt")
 
     if model_path.exists():
         print("Loading existing model")
@@ -85,7 +85,7 @@ def process_image(image_path: str, model, output_folder: str) -> dict:
 
 
 def save_to_json(all_detections: dict, output_folder: str) -> None:
-    json_output_path = os.path.join(output_folder, 'detections.json')
+    json_output_path = os.path.join(output_folder, 'detections_400e.json')
     with open(json_output_path, 'w') as json_file:
         json.dump(all_detections, json_file, indent=4)
     
@@ -116,7 +116,7 @@ def load_yolo_annotations(annotation_path: str, img_width: int, img_height: int)
     return [{"boxes": torch.tensor(boxes, dtype=torch.float32), "labels": torch.tensor(labels, dtype=torch.long)}]
 
 
-RUN_TRAIN = False
+RUN_TRAIN = True
 RUN_VAL = True
 
 if __name__ == "__main__":

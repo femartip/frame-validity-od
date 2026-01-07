@@ -1,0 +1,216 @@
+{
+  "features": [
+    {
+      "feature_name": "Time of Day",
+      "description": "Indicates the time of day the image was captured, influencing lighting conditions and traffic patterns.",
+      "possible_values": [
+        "Day",
+        "Night",
+        "Dawn",
+        "Dusk"
+      ],
+      "extraction_query": "Determine the time of day depicted in the image. Options: 'Day', 'Night', 'Dawn', 'Dusk'."
+    },
+    {
+      "feature_name": "Weather Condition",
+      "description": "Describes the prevailing weather conditions, impacting visibility and road surface.",
+      "possible_values": [
+        "Clear",
+        "Cloudy",
+        "Rainy",
+        "Snowy",
+        "Foggy"
+      ],
+      "extraction_query": "Identify the weather condition shown in the image. Options: 'Clear', 'Cloudy', 'Rainy', 'Snowy', 'Foggy'."
+    },
+    {
+      "feature_name": "Road Type",
+      "description": "Categorizes the type of road depicted, influencing speed limits and traffic flow.",
+      "possible_values": [
+        "Highway",
+        "City Street",
+        "Rural Road",
+        "Tunnel"
+      ],
+      "extraction_query": "Classify the type of road visible in the image. Options: 'Highway', 'City Street', 'Rural Road', 'Tunnel'."
+    },
+    {
+      "feature_name": "Presence of Pedestrians",
+      "description": "Indicates whether pedestrians are visible in the scene, impacting safety considerations.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if pedestrians are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Presence of Vehicles",
+      "description": "Indicates whether other vehicles are visible in the scene, influencing traffic density.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if other vehicles are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Traffic Density",
+      "description": "Estimates the level of traffic congestion in the scene.",
+      "possible_values": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "extraction_query": "Assess the traffic density in the image. Options: 'Low', 'Medium', 'High'."
+    },
+    {
+      "feature_name": "Presence of Lane Markings",
+      "description": "Indicates whether lane markings are clearly visible, aiding in lane keeping.",
+      "possible_values": [
+        "Yes",
+        "No",
+        "Faded"
+      ],
+      "extraction_query": "Determine the visibility of lane markings in the image. Options: 'Yes', 'No', 'Faded'."
+    },
+    {
+      "feature_name": "Presence of Traffic Signs",
+      "description": "Indicates whether traffic signs are visible, providing regulatory information.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if traffic signs are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Sign Type",
+      "description": "Categorizes the type of traffic sign visible.",
+      "possible_values": [
+        "Speed Limit",
+        "Warning",
+        "Directional",
+        "Regulatory",
+        "Other"
+      ],
+      "extraction_query": "Identify the type of traffic sign in the image. Options: 'Speed Limit', 'Warning', 'Directional', 'Regulatory', 'Other'."
+    },
+    {
+      "feature_name": "Presence of Buildings",
+      "description": "Indicates whether buildings are visible in the scene, providing contextual information.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if buildings are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Building Density",
+      "description": "Estimates the density of buildings in the scene.",
+      "possible_values": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "extraction_query": "Assess the building density in the image. Options: 'Low', 'Medium', 'High'."
+    },
+    {
+      "feature_name": "Presence of Trees",
+      "description": "Indicates whether trees are visible in the scene, providing environmental context.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if trees are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Tree Density",
+      "description": "Estimates the density of trees in the scene.",
+      "possible_values": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "extraction_query": "Assess the tree density in the image. Options: 'Low', 'Medium', 'High'."
+    },
+    {
+      "feature_name": "Road Surface Condition",
+      "description": "Describes the condition of the road surface, impacting vehicle handling.",
+      "possible_values": [
+        "Dry",
+        "Wet",
+        "Icy",
+        "Snow-covered"
+      ],
+      "extraction_query": "Identify the road surface condition in the image. Options: 'Dry', 'Wet', 'Icy', 'Snow-covered'."
+    },
+    {
+      "feature_name": "Visibility Range",
+      "description": "Estimates the distance at which objects are clearly visible.",
+      "possible_values": [
+        "Short",
+        "Medium",
+        "Long"
+      ],
+      "extraction_query": "Assess the visibility range in the image. Options: 'Short', 'Medium', 'Long'."
+    },
+    {
+      "feature_name": "Light Level",
+      "description": "Indicates the overall level of illumination in the scene.",
+      "possible_values": [
+        "Bright",
+        "Dim",
+        "Dark"
+      ],
+      "extraction_query": "Determine the light level in the image. Options: 'Bright', 'Dim', 'Dark'."
+    },
+    {
+      "feature_name": "Presence of Streetlights",
+      "description": "Indicates whether streetlights are visible, providing artificial illumination.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if streetlights are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Camera Angle",
+      "description": "Estimates the angle of the camera relative to the road.",
+      "possible_values": [
+        "Low",
+        "Medium",
+        "High"
+      ],
+      "extraction_query": "Assess the camera angle in the image. Options: 'Low', 'Medium', 'High'."
+    },
+    {
+      "feature_name": "Presence of Guardrails",
+      "description": "Indicates whether guardrails are visible, providing roadside protection.",
+      "possible_values": [
+        "Yes",
+        "No"
+      ],
+      "extraction_query": "Determine if guardrails are present in the image. Options: 'Yes', 'No'."
+    },
+    {
+      "feature_name": "Road Curvature",
+      "description": "Describes the degree of curvature in the road.",
+      "possible_values": [
+        "Straight",
+        "Slight Curve",
+        "Sharp Curve"
+      ],
+      "extraction_query": "Assess the road curvature in the image. Options: 'Straight', 'Slight Curve', 'Sharp Curve'."
+    },
+    {
+      "feature_name": "Number of Lanes",
+      "description": "Counts the number of visible lanes on the road.",
+      "possible_values": [
+        "1",
+        "2",
+        "3",
+        "4+",
+        "Unknown"
+      ],
+      "extraction_query": "Count the number of visible lanes in the image. Options: '1', '2', '3', '4+', 'Unknown'."
+    }
+  ]
+}

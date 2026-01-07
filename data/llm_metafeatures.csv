@@ -1,0 +1,6 @@
+img_id,Time of Day,Weather Condition,Road Type,Presence of Pedestrians,Presence of Vehicles,Traffic Density,Presence of Lane Markings,Presence of Traffic Signs,Sign Type,Presence of Buildings,Building Density,Presence of Trees,Tree Density,Road Surface Condition,Visibility Range,Light Level,Presence of Streetlights,Camera Angle,Presence of Guardrails,Road Curvature,Number of Lanes
+8459,Day,Cloudy,City Street,No,Yes,Low,Yes,Yes,Directional,Yes,High,Yes,Medium,Dry,Medium,Dim,Yes,Medium,No,Straight,2
+63960,Dusk,Cloudy,City Street,No,Yes,Low,Yes,Yes,Regulatory,Yes,Medium,Yes,Low,Wet,Medium,Dim,Yes,Low,No,Straight,4+
+71801,Day,Cloudy,Highway,No,Yes,Low,Yes,No,Other,Yes,Low,Yes,Low,Dry,Long,Bright,Yes,Medium,Yes,Straight,3
+85589,Night,Clear,Highway,No,Yes,Low,Yes,Yes,Other,No,Low,Yes,Medium,Dry,Medium,Dim,Yes,Medium,Yes,Straight,3
+90649,Day,Cloudy,Highway,No,Yes,Low,Yes,Yes,Regulatory,No,Low,Yes,Medium,Dry,Medium,Dim,No,Medium,Yes,Straight,3

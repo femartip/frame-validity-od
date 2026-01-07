@@ -95,7 +95,8 @@ def generate_coco_json(dataset: ZodFrames, split: str, classes: List[str], anony
 
 
 # Use typer instead of argparse
-def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full", anonymization: Anonymization = Anonymization.BLUR, use_png: bool = False, classes: List[str] = ["Vehicle", "Pedestrian", "VulnerableVehicle"]):
+def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full", anonymization: Anonymization = Anonymization.BLUR, use_png: bool = False):
+    classes = OBJECT_CLASSES
     # check that classes are valid
     for cls in classes:
         if cls not in OBJECT_CLASSES:

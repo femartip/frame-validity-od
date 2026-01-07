@@ -6,10 +6,12 @@
 4,IoU,Random Forest,0.3772,0.0969,0.017
 5,IoU,MLP,0.3279,0.1023,0.0183
 6,IoU,XGBoost,0.3618,0.0997,0.0174
-7,LRP,Constant Mean Predictor,-0.0002,0.1054,0.0206
-8,LRP,Univariate Linear Regression (Confidence),0.3946,0.0822,0.0125
-9,LRP,Linear Regression,0.4208,0.0802,0.0119
-10,LRP,Decision Tree,0.4108,0.0785,0.0121
-11,LRP,Random Forest,0.4329,0.0772,0.0117
-12,LRP,MLP,0.4052,0.0805,0.0123
-13,LRP,XGBoost,0.413,0.0794,0.0121
+7,IoU,Autogluon_tab,0.3863,0.097,0.0167
+8,LRP,Constant Mean Predictor,-0.0002,0.1054,0.0206
+9,LRP,Univariate Linear Regression (Confidence),0.3946,0.0822,0.0125
+10,LRP,Linear Regression,0.4208,0.0802,0.0119
+11,LRP,Decision Tree,0.4108,0.0785,0.0121
+12,LRP,Random Forest,0.4329,0.0772,0.0117
+13,LRP,MLP,0.4052,0.0805,0.0123
+14,LRP,XGBoost,0.413,0.0794,0.0121
+15,lrp,Autogluon_tab,0.4368,0.1516,0.0338

@@ -2,11 +2,20 @@
 path: /home/felix/Predictability-AD/data/zod_yolo
 train: images/train
 val: images/val
+test: images/test
 
 # Classes
 names:
   0: Vehicle
   1: VulnerableVehicle
   2: Pedestrian
+  3: Animal
+  4: PoleObject
+  5: TrafficBeacon
+  6: TrafficSign
+  7: TrafficSignal
+  8: TrafficGuide
+  9: DynamicBarrier
+  10: Unclear
 
-nc: 3
+nc: 11

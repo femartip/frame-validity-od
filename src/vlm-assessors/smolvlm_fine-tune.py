@@ -15,9 +15,10 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 from dotenv import load_dotenv
+import json
 
 SEED = 43
-#DEVICE = "cuda:1"
+DEVICE = torch.device("cuda:0")
 #DEVICE_INDEX = 1
 np.random.seed(SEED)
 
@@ -39,6 +40,13 @@ class ImageDataset(Dataset):
         return len(self.data)
     def __getitem__(self, idx):
         return self.data[idx]
+
+def save_to_json(all_detections: dict, json_output_path: str) -> None:
+    with open(json_output_path, 'w') as json_file:
+        json.dump(all_detections, json_file, indent=4)
+    
+    print(f'All detections saved to {json_output_path}')
+    print(f'Total images processed: {len(all_detections)}')
 
 def format_data(img: Image.Image, conf: float, validity_metric: float, val_metric_text: str = "iou") -> dict:
     #if val_metric_text == 'iou':
@@ -120,7 +128,7 @@ Remember: output only a single number in [0,1].
         ]
     }
 
-def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor: AutoProcessor, sample: dict, max_new_tokens: int =1024, device: str ="cuda:0") -> str:
+def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor: AutoProcessor, sample: dict, max_new_tokens: int =1024) -> str:
     clear_memory()
     
     # Prepare the text input by applying the chat template
@@ -134,7 +142,7 @@ def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor
     image_inputs.append([image])
 
     # Prepare the inputs for the model
-    model_inputs = processor(text=text_input,images=image_inputs,return_tensors="pt",).to(device)  # Move inputs to the specified device
+    model_inputs = processor(text=text_input,images=image_inputs,return_tensors="pt",).to(DEVICE)  # Move inputs to the specified device
 
     # Generate text with the model
     generated_ids = model.generate(**model_inputs, max_new_tokens=max_new_tokens)
@@ -148,7 +156,7 @@ def generate_text_from_sample(model: Idefics3ForConditionalGeneration, processor
     return output_text[0]
 
 
-def generate_text_from_batch(model, processor, batch_samples: list, max_new_tokens: int = 1024, device: str = "cuda:1") -> list[str]:
+def generate_text_from_batch(model, processor, batch_samples: list, max_new_tokens: int = 1024) -> list[str]:
     text_inputs = []
     image_inputs = []
 
@@ -168,7 +176,7 @@ def generate_text_from_batch(model, processor, batch_samples: list, max_new_toke
 
     # 2. Tokenize and Pad Batch
     # padding=True is critical here to handle different sequence lengths in one batch
-    model_inputs = processor(text=text_inputs, images=image_inputs, return_tensors="pt", padding=True).to(device)
+    model_inputs = processor(text=text_inputs, images=image_inputs, return_tensors="pt", padding=True).to(DEVICE)
 
     # 3. Generate
     generated_ids = model.generate(**model_inputs, max_new_tokens=max_new_tokens)
@@ -205,10 +213,10 @@ def clear_memory(print_stats: bool = True) -> None:
 
 
 
-def test(test_dataset: list, validity_metric: str ="iou", batch_size: int = 4) -> None:
+def test(test_dataset: list, validity_metric: str ="iou", batch_size: int = 4) -> list:
     clear_memory()
     model_id = "HuggingFaceTB/SmolVLM-Instruct"
-    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map="auto", torch_dtype=torch.bfloat16, _attn_implementation="flash_attention_2",)
+    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, torch_dtype=torch.bfloat16, _attn_implementation="flash_attention_2",).to(DEVICE)
     processor = AutoProcessor.from_pretrained(model_id)
     adapter_path = f"models/assessors/smolvlm-{validity_metric}"
     model.load_adapter(adapter_path)
@@ -253,6 +261,7 @@ def test(test_dataset: list, validity_metric: str ="iou", batch_size: int = 4) -
     print(f"Test MAE: {mae:.4f}")
     print(f"Test MSE: {mse:.4f}")
     clear_memory()
+    return y_pred.tolist()
     
     
 
@@ -261,7 +270,7 @@ def fine_tune(train_dataset: list, eval_dataset: list, validity_metric: str ="io
     model_id = "HuggingFaceTB/SmolVLM-Instruct"
 
     bnb_config = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_use_double_quant=True, bnb_4bit_quant_type="nf4", bnb_4bit_compute_dtype=torch.bfloat16) #load quant version 
-    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map="auto", torch_dtype=torch.bfloat16, quantization_config=bnb_config, _attn_implementation="flash_attention_2",) # Load model and tokenizer
+    model = Idefics3ForConditionalGeneration.from_pretrained(model_id, torch_dtype=torch.bfloat16, quantization_config=bnb_config, _attn_implementation="flash_attention_2",).to(DEVICE) # Load model and tokenizer
     model.gradient_checkpointing_enable() 
     processor = AutoProcessor.from_pretrained(model_id)
 
@@ -355,11 +364,13 @@ if __name__ == "__main__":
 
     # TEST
     #model_id = "HuggingFaceTB/SmolVLM-Instruct"
-    #model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map="auto", torch_dtype=torch.bfloat16, _attn_implementation="flash_attention_2",)
+    #model = Idefics3ForConditionalGeneration.from_pretrained(model_id, device_map=DEVICE, torch_dtype=torch.bfloat16, _attn_implementation="flash_attention_2",)
     #processor = AutoProcessor.from_pretrained(model_id)
     #output = generate_text_from_sample(test_dataset[0])
     #print("Generated output:", output)
 
-    fine_tune(train_dataset, eval_dataset, validity_metric=TARGET_METRIC)
-    test(test_dataset, validity_metric=TARGET_METRIC, batch_size=16)
+    #fine_tune(train_dataset, eval_dataset, validity_metric=TARGET_METRIC)
+    y_pred = test(test_dataset, validity_metric=TARGET_METRIC, batch_size=16)
+    predictions = dict(zip(test_idx, y_pred))
+    save_to_json(predictions, json_output_path=f"./results/assessors/vlm_{TARGET_METRIC}_pred.json")
     
