@@ -14,13 +14,16 @@ from ultralytics.utils import DATASETS_DIR, LOGGER, NUM_THREADS, TQDM
 from ultralytics.utils.downloads import download, zip_directory
 from ultralytics.utils.files import increment_path
 
-def to_yaml(save_dir: str, dataset_info: dict) -> None:
+def to_yaml(save_dir: str, dataset_info: dict, has_test: bool) -> None:
     yaml_content = f"""# Dataset configuration
 path: {save_dir.absolute()}
 train: images/train
 val: images/val
-test: images/test
+"""
+    if has_test:
+        yaml_content += "test: images/test\n"
 
+    yaml_content += """
 # Classes
 names:
 """
@@ -41,9 +44,19 @@ def convert_coco(labels_dir: str,save_dir: str,use_keypoints: bool = False, copy
     dataset_info = {'names': {}, 'nc': 0}
     
     # Import json
+    has_test = False
     for json_file in sorted(Path(labels_dir).resolve().glob("*.json")):
         lname = json_file.stem.replace("instances_", "")
-        split = 'train' if 'train' in lname else ('val' if 'val' in lname else 'test')
+        if lname.endswith("_train"):
+            split = "train"
+        elif lname.endswith("_val"):
+            split = "val"
+        elif lname.endswith("_test"):
+            split = "test"
+            has_test = True
+        else:
+            LOGGER.warning(f"Skipping JSON with unknown split: {json_file}")
+            continue
         
         images_dir = save_dir / 'images' / split
         labels_dir_out = save_dir / 'labels' / split
@@ -117,7 +130,7 @@ def convert_coco(labels_dir: str,save_dir: str,use_keypoints: bool = False, copy
                         print(f"Error processing image {src_img_path}: {e}")
 
 
-    to_yaml(save_dir, dataset_info)
+    to_yaml(save_dir, dataset_info, has_test)
     print(f"Conversion complete! Dataset saved to {save_dir}")
     print(f"Classes: {dataset_info['nc']}, Names: {list(dataset_info['names'].values())}")
 
