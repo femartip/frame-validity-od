@@ -1,6 +1,21 @@
-img_id,Time of Day,Weather Condition,Road Type,Presence of Pedestrians,Presence of Vehicles,Traffic Density,Presence of Lane Markings,Presence of Traffic Signs,Sign Type,Presence of Buildings,Building Density,Presence of Trees,Tree Density,Road Surface Condition,Visibility Range,Light Level,Presence of Streetlights,Camera Angle,Presence of Guardrails,Road Curvature,Number of Lanes
-8459,Day,Cloudy,City Street,No,Yes,Low,Yes,Yes,Directional,Yes,High,Yes,Medium,Dry,Medium,Dim,Yes,Medium,No,Straight,2
-63960,Dusk,Cloudy,City Street,No,Yes,Low,Yes,Yes,Regulatory,Yes,Medium,Yes,Low,Wet,Medium,Dim,Yes,Low,No,Straight,4+
-71801,Day,Cloudy,Highway,No,Yes,Low,Yes,No,Other,Yes,Low,Yes,Low,Dry,Long,Bright,Yes,Medium,Yes,Straight,3
-85589,Night,Clear,Highway,No,Yes,Low,Yes,Yes,Other,No,Low,Yes,Medium,Dry,Medium,Dim,Yes,Medium,Yes,Straight,3
-90649,Day,Cloudy,Highway,No,Yes,Low,Yes,Yes,Regulatory,No,Low,Yes,Medium,Dry,Medium,Dim,No,Medium,Yes,Straight,3
+img_id,Time_of_Day,Weather_Condition,Road_Environment_Type,Road_Surface_Condition,Traffic_Density,Pedestrian_Presence,Cyclist_Presence,Number_of_Visible_Lanes,Intersection_Type,Lane_Marking_Visibility,Artificial_Lighting_Source,Crosswalk_Presence,Vertical_Road_Profile,Horizontal_Road_Curvature,Infrastructure_Barriers,Building_Density,Vegetation_Level,Traffic_Sign_Presence,Vehicle_Composition,Ego_Vehicle_Lane_Position
+8459,Daylight,Cloudy,Urban,Dry,Low,,No,2,T-Junction,Clear,,No,Flat,Straight,Curb,Low_Density_Urban,Moderate,Regulatory,Passenger_Cars_Only,Centered
+63960,Twilight,Cloudy,Urban,Dry,Moderate,On_Sidewalk,No,4,Four-Way,Clear,Street_Lights,Yes,Flat,Straight,Curb,Low_Density_Urban,Moderate,Multiple_Types,Passenger_Cars_Only,Centered
+71801,Daylight,Cloudy,Highway,Dry,Low,,No,3,,Clear,,No,Flat,Straight,Concrete_Median,Low_Density_Urban,Sparse,,Passenger_Cars_Only,Centered
+85589,Night,Clear,Highway,Dry,Low,,No,3,,Clear,Street_Lights,No,Flat,Straight,Concrete_Median,,Moderate,Directional,Passenger_Cars_Only,Centered
+90649,Daylight,Cloudy,Highway,Dry,Low,,No,3,,Clear,,No,Flat,Slight_Left,Metal_Guardrail,Sparse/Rural,Moderate,Directional,Passenger_Cars_Only,Centered
+48806,Daylight,Clear,Residential,Dry,Low,,No,2,,Clear,,No,Flat,Straight,Curb,Low_Density_Urban,Moderate,Directional,Passenger_Cars_Only,Centered
+35874,Daylight,Clear,Urban,Dry,Low,Near_Roadside,No,1,,Faded,,No,Flat,Straight,Curb,High_Rise,Sparse,Multiple_Types,Passenger_Cars_Only,Centered
+33633,Daylight,Clear,Urban,Slushy,Low,On_Sidewalk,No,2,,Occluded_by_Snow/Water,,No,Flat,Straight,Curb,Low_Density_Urban,Sparse,Multiple_Types,Passenger_Cars_Only,Centered
+86940,Daylight,Cloudy,Rural,Dry,Low,,No,3,Four-Way,Clear,,No,Flat,Straight,Curb,Sparse/Rural,Moderate,Multiple_Types,No_Vehicles,Centered
+45719,Daylight,Clear,Urban,Dry,Low,,No,3,Four-Way,Clear,,Yes,Flat,Straight,Curb,High_Rise,Moderate,Regulatory,Mixed_Heavy_Traffic,Centered
+24618,Daylight,Cloudy,Urban,Dry,Low,None,No,2,None,Clear,None,No,Flat,Straight,Curb,Low_Density_Urban,Moderate,Regulatory,Mixed_Heavy_Traffic,Centered
+63833,Daylight,Cloudy,Rural,Dry,Low,None,Yes,2,None,Clear,None,No,Flat,Straight,None,Sparse/Rural,Moderate,Multiple_Types,Mixed_Heavy_Traffic,Centered
+11675,Daylight,Cloudy,Urban,Dry,Moderate,On_Sidewalk,Yes,2,Four-Way,Faded,None,Yes,Flat,Straight,Curb,High_Rise,Sparse,Multiple_Types,Passenger_Cars_Only,Centered
+42143,Daylight,Cloudy,Highway,Dry,Low,Near_Roadside,No,2,None,Clear,None,No,Flat,Straight,Metal_Guardrail,Low_Density_Urban,Moderate,Multiple_Types,Mixed_Heavy_Traffic,Centered
+41247,Daylight,Clear,Highway,Dry,Low,None,No,2,None,Clear,None,No,Flat,Straight,Metal_Guardrail,Low_Density_Urban,Moderate,Directional,Passenger_Cars_Only,Centered
+44941,Daylight,Rainy,Urban,Wet,Moderate,Crossing_Road,No,3,Four-Way,Occluded_by_Snow/Water,None,Yes,Flat,Straight,Curb,High_Rise,Sparse,Multiple_Types,Mixed_Heavy_Traffic,Centered
+25864,Daylight,Cloudy,Urban,Dry,Low,None,No,2,None,Clear,None,No,Flat,Straight,Curb,Low_Density_Urban,Moderate,Multiple_Types,Passenger_Cars_Only,Centered
+48564,Night,Clear,Urban,Dry,Low,None,No,2,None,Clear,Street_Lights,No,Flat,Straight,Curb,Low_Density_Urban,None,Regulatory,Passenger_Cars_Only,Centered
+71242,Daylight,Cloudy,Highway,Dry,Moderate,None,No,3,None,Clear,None,No,Flat,Straight,Noise_Wall,Low_Density_Urban,Moderate,Directional,Mixed_Heavy_Traffic,Centered
+6444,Daylight,Clear,Urban,Dry,Low,None,No,2,T-Junction,Clear,None,No,Flat,Straight,Curb,Low_Density_Urban,Moderate,None,Passenger_Cars_Only,Centered

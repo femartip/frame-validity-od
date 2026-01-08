@@ -39,6 +39,7 @@ dependencies = [
     "autogluon (>=1.4.0,<2.0.0)",
     "openai (>=2.14.0,<3.0.0)",
     "rfdetr @ git+https://github.com/femartip/rf-detr.git",
+    "google-genai (>=1.57.0,<2.0.0)",
 ]
 
 [tool.poetry]

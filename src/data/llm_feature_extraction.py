@@ -6,15 +6,20 @@ import re
 import json
 from dotenv import dotenv_values
 
-import openai
-from openai import OpenAI 
 import base64
 from tenacity import retry as tenacity_retry, wait_exponential, stop_after_delay, RetryError
 
 SEED = 42
 
+import openai
+from openai import OpenAI 
 #openai.api_key = dotenv_values(".env")["OPENAI_API_KEY"]
 #openai.api_base = dotenv_values(".env")["OPENAI_API_BASE"]
+
+from google import genai
+from google.genai import types
+GEMINI_API_KEY = dotenv_values(".env")["GOOGLE_API_KEY"]
+
 
 init_prompt = Template("""
 {
@@ -69,53 +74,89 @@ final_prompt = """
 """
 
 
-def generate_feature_query(features: str, image_path: str) -> list:
+def generate_feature_query(features: str, image_path: str, llm: str) -> list:
     with open(image_path, "rb") as image_file:
-            img_b64 = base64.b64encode(image_file.read()).decode('utf-8')
+        img = image_file.read()
+        img_b64 = base64.b64encode(img).decode('utf-8')
     query = []
-    query.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})        
-    query.append({"type": "text", "text": """
-        "task": "Extract the following features as described below and return a valid JSON object.",
-        "constraints": [
-            "The output must be a valid JSON.",
-            "All answers must be simple and correspond to categorical values only."
-        ],
-        "features": [
-    """
-    + features +              
-    """
-        ],
-        "output_format": {
-            "type": "json",
-            "structure": {
-                "features": [
-                    {
-                        "feature_name": "<Feature Name>",
-                        "answer": "<Extracted Answer>"
-                    }
-                ]
-            }
-        }"""})
+    if llm == "gemini":
+        query.append(types.Part.from_bytes(data=img, mime_type="image/jpeg"))        
+        query.append("""
+            "task": "Extract the following features as described below and return a valid JSON object.",
+            "constraints": [
+                "The output must be a valid JSON.",
+                "All answers must be simple and correspond to categorical values only."
+            ],
+            "features": [
+        """
+        + features +              
+        """
+            ],
+            "output_format": {
+                "type": "json",
+                "structure": {
+                    "features": [
+                        {
+                            "feature_name": "<Feature Name>",
+                            "answer": "<Extracted Answer>"
+                        }
+                    ]
+                }
+            }""")
+    
+    elif llm == "openai":
+        query.append({"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}})        
+        query.append({"type": "text", "text": """
+            "task": "Extract the following features as described below and return a valid JSON object.",
+            "constraints": [
+                "The output must be a valid JSON.",
+                "All answers must be simple and correspond to categorical values only."
+            ],
+            "features": [
+        """
+        + features +              
+        """
+            ],
+            "output_format": {
+                "type": "json",
+                "structure": {
+                    "features": [
+                        {
+                            "feature_name": "<Feature Name>",
+                            "answer": "<Extracted Answer>"
+                        }
+                    ]
+                }
+            }"""})
+    
     return query
 
 
-
 # Generate prompt
-def generate_prompt(name: str, description: str, df: pd.DataFrame, image_path: str, img_file_names: list,target_col: str | None = None) -> list[dict]:
+def generate_prompt(name: str, description: str, df: pd.DataFrame, image_path: str, img_file_names: list, llm: str) -> list[dict]:
     RAND_N_IMG = 10
     random_img_id = df.sample(n=RAND_N_IMG, random_state=SEED).index.tolist()
     imgs = [] 
+    imgs_bs64 = []
     for img_id in random_img_id:
         img_file_name = img_file_names[img_id]
         img_path_name = image_path + img_file_name
         with open(img_path_name, "rb") as image_file:
-            img_b64 = base64.b64encode(image_file.read()).decode('utf-8')
-        imgs.append(img_b64)
+            img = image_file.read()
+            img_b64 = base64.b64encode(img).decode('utf-8')
+        imgs.append(img)
+        imgs_bs64.append(img_b64)
     
     prompt = []
-    prompt.append({"type": "text", "text": init_prompt.substitute(name=name, description=description)})
-    prompt.extend([{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data_url}"}} for data_url in imgs])
-    prompt.append({"type": "text", "text": final_prompt})
+    if llm == "gemini":
+        prompt.append(init_prompt.substitute(name=name, description=description))
+        prompt.extend([types.Part.from_bytes(data=data_byte, mime_type="image/jpeg") for data_byte in imgs])
+        prompt.append(final_prompt)
+
+    elif llm == "openai":
+        prompt.append({"type": "text", "text": init_prompt.substitute(name=name, description=description)})
+        prompt.extend([{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{data_b64}"}} for data_b64 in imgs_bs64])
+        prompt.append({"type": "text", "text": final_prompt})
 
     return prompt
 
@@ -152,21 +193,34 @@ def extract_json(response: str) -> dict:
     stop=stop_after_delay(800),
     reraise=True,
 )
-def get_response(prompt: list[dict]) -> str:
-    response = llm.chat.completions.create(
-        model="google/gemma-3-27b-it:free",
-        messages=[
-            {"role": "user", "content": prompt}            #type: ignore
-        ],
-          extra_body={"reasoning": {"enabled": True}})
-    feature_str = str(response.choices[0].message.content)
-    return feature_str
+def get_response(llm: str, prompt: list) -> str:
+    if llm == "gemini":
+        # Google config
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model="gemini-3-flash-preview",
+            contents=prompt,
+        )
+        return str(response.text)
 
+    elif llm == "openai":    
+        # OpenAI conifg
+        client = OpenAI(base_url=dotenv_values(".env")["OPENAI_API_BASE"], api_key=dotenv_values(".env")["OPENAI_API_KEY"],) 
+        response = client.chat.completions.create(
+            model="google/gemma-3-27b-it:free",
+            messages=[
+                {"role": "user", "content": prompt}            #type: ignore
+            ],
+            extra_body={"reasoning": {"enabled": True}})
+        return str(response.choices[0].message.content)
+    else:
+        raise ValueError()
+    
 
-def feature_discovery(dataset: dict) -> str:
+def feature_discovery(llm: str, dataset: dict) -> str:
     # Feature discovery
-    json_prompt = generate_prompt(dataset['name'], dataset['description'], dataset['df'], dataset['image_path'], dataset['img_file_names'])
-    feature_str = get_response(json_prompt)
+    json_prompt = generate_prompt(dataset['name'], dataset['description'], dataset['df'], dataset['image_path'], dataset['img_file_names'], llm)
+    feature_str = get_response(llm, json_prompt)
     json_features = extract_json(feature_str)
     num_features = len(json_features["features"])
     print(f"Features extracted information: \nNum of features {num_features} \nFeatures{feature_str}")
@@ -174,15 +228,15 @@ def feature_discovery(dataset: dict) -> str:
         json.dump(json_features, f, indent=2, ensure_ascii=False)
     return feature_str
 
-def feature_generation(file_names_dict: dict, feature_str: str, img_ids: list | None = None) -> list[dict]:
+def feature_generation(llm: str, file_names_dict: dict, feature_str: str, img_ids: list | None = None) -> list[dict]:
     #Feature generation
     rows = []
     img_ids = img_ids or list(file_names_dict.keys())
-    for img_id in img_ids[:5]:
+    for img_id in img_ids[:10]:
         image_file_path = "./data/zod_yolo/images/val/" + file_names_dict[img_id]
-        img_query = generate_feature_query(feature_str, image_file_path)
+        img_query = generate_feature_query(feature_str, image_file_path, llm)
         
-        img_feat_values_str = get_response(img_query)
+        img_feat_values_str = get_response(llm, img_query)
         img_feat_values_json = extract_json(img_feat_values_str)
         img_feat_dict = img_feat_values_json["features"]
         
@@ -195,8 +249,11 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="LLM feature extraction")
+    parser.add_argument("llm", type=str, help="Select LLM provider, can be gemini or openai")
     parser.add_argument("--resume", action="store_true", help="Resume from existing features and descriptions")
     args = parser.parse_args()
+
+    assert args.llm in ["gemini", "openai"]
 
     data = pd.read_csv("./data/data_yolo_500e.csv", index_col=0)
     img_file_names = os.listdir("./data/zod_yolo/images/val/")
@@ -209,7 +266,6 @@ if __name__ == "__main__":
                 "img_file_names": file_names_dict,
                 #"target_column": "",
                 }
-    llm = OpenAI(base_url=dotenv_values(".env")["OPENAI_API_BASE"], api_key=dotenv_values(".env")["OPENAI_API_KEY"],)
 
     existing_df = None
     existing_feature_str = None
@@ -221,7 +277,7 @@ if __name__ == "__main__":
                 existing_feature_str = json.dumps(json.load(f), indent=2, ensure_ascii=False)
 
     if existing_feature_str is None:
-        feature_str = feature_discovery(dataset)
+        feature_str = feature_discovery(args.llm, dataset)
     else:
         feature_str = existing_feature_str
 
@@ -233,7 +289,7 @@ if __name__ == "__main__":
     if missing_ids:
         missing_files_dict = get_files_by_ids(missing_ids, img_file_names)
         img_ids_to_process = list(missing_files_dict.keys())
-        rows = feature_generation(missing_files_dict, feature_str, img_ids=img_ids_to_process)
+        rows = feature_generation(args.llm, missing_files_dict, feature_str, img_ids=img_ids_to_process)
         new_df = pd.DataFrame(rows).set_index("img_id")
         if existing_df is not None:
             df = pd.concat([existing_df, new_df])
