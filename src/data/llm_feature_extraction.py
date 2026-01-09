@@ -232,7 +232,7 @@ def feature_generation(llm: str, file_names_dict: dict, feature_str: str, img_id
     #Feature generation
     rows = []
     img_ids = img_ids or list(file_names_dict.keys())
-    for img_id in img_ids[:10]:
+    for img_id in img_ids[:20]:
         image_file_path = "./data/zod_yolo/images/val/" + file_names_dict[img_id]
         img_query = generate_feature_query(feature_str, image_file_path, llm)
         
