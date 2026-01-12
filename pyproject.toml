@@ -42,6 +42,7 @@ dependencies = [
     "google-genai (>=1.57.0,<2.0.0)",
     "pysqlite3 (>=0.6.0,<0.7.0)",
     "autogluon-multimodal (>=1.5.0,<2.0.0)",
+    "stackview (>=0.19.1,<0.20.0)",
 ]
 
 [tool.poetry]

@@ -10,7 +10,7 @@ def train_rfdetr(model):
         epochs=30,
         batch_size=4,
         grad_accum_steps=4,
-        lr=1e-2,
+        lr=1e-3,
         output_dir="./models/rf-detr/",
         early_stopping=True,
         early_stopping_patience=5,
