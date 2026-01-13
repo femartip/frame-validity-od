@@ -1,4 +1,4 @@
-from rfdetr import RFDETRBase, RFDETRSmall
+from rfdetr import RFDETRBase, RFDETRSmall # type: ignore
 from pathlib import Path
 import tensorboard
 
