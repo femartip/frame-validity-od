@@ -9,13 +9,19 @@ import torch
 from tqdm import tqdm
 from detectron2.data import DatasetCatalog
 from detectron2.engine import DefaultPredictor
-from train import build_config, register_dataset
-from src.models import metrics
+import metrics
+
+from detectron2.data.datasets import register_coco_instances
+from detectron2.config import get_cfg
+from detectron2 import model_zoo
 
 
 def load_model(checkpoint_path: str) -> DefaultPredictor:
-    cfg = build_config(argparse.Namespace())
+    cfg = get_cfg()    # obtain detectron2's default config
+    cfg.merge_from_file("./models/faster-rcnn/config.yaml")   # load values from a file    cfg.MODEL.WEIGHTS = checkpoint_path
     cfg.MODEL.WEIGHTS = checkpoint_path
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
+    cfg.freeze()
     return DefaultPredictor(cfg)
 
 
@@ -73,25 +79,28 @@ def save_to_json(all_detections: dict, output_folder: str, filename: str) -> Non
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--zod-path", default="data/zod_coco")
-    parser.add_argument("--train-json", default="_annotations.coco.json")
-    parser.add_argument("--val-json", default="_annotations.coco.json")
-    parser.add_argument("--image-root", default=".")
-    parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--output-dir", default="results/detectron2")
+    parser.add_argument("checkpoint", type=str)
+    parser.add_argument("--zod-path", default="./data/zod_coco/", type=str)
+    parser.add_argument("--train", action="store_true")
+    parser.add_argument("--val", action="store_true")
+    parser.add_argument("--image-root", default=".", type=str)
+    parser.add_argument("--output-dir", default="results/detectron2", type=str)
     args = parser.parse_args()
 
-    register_dataset(args.zod_path, args.train_json, args.val_json, args.image_root)
-    train_dataset = DatasetCatalog.get("train")
-    val_dataset = DatasetCatalog.get("valid")
+    json_coco = "_annotations.coco.json"
+
+    if args.train:
+        register_coco_instances("train", {}, osp.join(args.zod_path, "train", json_coco), args.image_root)
+        train_dataset = DatasetCatalog.get("train")
+
+    if args.val:
+        register_coco_instances("valid", {}, osp.join(args.zod_path, "valid", json_coco), args.image_root)
+        val_dataset = DatasetCatalog.get("valid")
 
     os.makedirs(args.output_dir, exist_ok=True)
     predictor = load_model(args.checkpoint)
 
-    run_train = True
-    run_val = True
-
-    if run_train:
+    if args.train:
         print(f"Processing {len(train_dataset)} training images")
         iou_vals = []
         lrp_vals = []
@@ -106,7 +115,7 @@ def main():
         print(f"Training Mean IoU: {np.mean(iou_vals):.4f}")
         print(f"Training Mean LRP: {np.mean(lrp_vals):.4f}")
 
-    if run_val:
+    if args.val:
         print(f"Processing {len(val_dataset)} validation images")
         detections_val = {}
         iou_vals = []

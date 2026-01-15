@@ -27,9 +27,8 @@ def build_config(args: Namespace) -> CfgNode:
     cfg.DATALOADER.NUM_WORKERS = 16
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(OBJECT_CLASSES)
     cfg.OUTPUT_DIR = "./models/faster_rcnn/"
-    cfg.RESULT_SUBDIR = "./models/faster_rcnn/"
     cfg.SOLVER.IMS_PER_BATCH = 22
-    cfg.SOLVER.BASE_LR = 0.0025
+    cfg.SOLVER.BASE_LR = 0.025
     cfg.SOLVER.MAX_ITER = 90000
     cfg.SOLVER.STEPS = (60000, 80000)
     cfg.SOLVER.WARMUP_ITERS = 1000

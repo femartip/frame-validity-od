@@ -4,7 +4,7 @@ from tqdm import tqdm
 import os
 import json
 import cv2
-from src.models import metrics
+import metrics
 import torch
 from torch import tensor
 import numpy as np
