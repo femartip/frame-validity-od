@@ -13,8 +13,7 @@ SEED = 42
 
 import openai
 from openai import OpenAI 
-#openai.api_key = dotenv_values(".env")["OPENAI_API_KEY"]
-#openai.api_base = dotenv_values(".env")["OPENAI_API_BASE"]
+openai.api_key = dotenv_values(".env")["OPENAI_KEY"]
 
 from google import genai
 from google.genai import types
@@ -205,9 +204,9 @@ def get_response(llm: str, prompt: list) -> str:
 
     elif llm == "openai":    
         # OpenAI conifg
-        client = OpenAI(base_url=dotenv_values(".env")["OPENAI_API_BASE"], api_key=dotenv_values(".env")["OPENAI_API_KEY"],) 
+        client = OpenAI(api_key=dotenv_values(".env")["OPENAI_API_KEY"],) 
         response = client.chat.completions.create(
-            model="google/gemma-3-27b-it:free",
+            model="gpt-5-mini",
             messages=[
                 {"role": "user", "content": prompt}            #type: ignore
             ],
@@ -232,7 +231,7 @@ def feature_generation(llm: str, file_names_dict: dict, feature_str: str, img_id
     #Feature generation
     rows = []
     img_ids = img_ids or list(file_names_dict.keys())
-    for img_id in img_ids[:20]:
+    for img_id in img_ids[:100]:
         image_file_path = "./data/zod_yolo/images/val/" + file_names_dict[img_id]
         img_query = generate_feature_query(feature_str, image_file_path, llm)
         
@@ -255,7 +254,7 @@ if __name__ == "__main__":
 
     assert args.llm in ["gemini", "openai"]
 
-    data = pd.read_csv("./data/data_yolo_500e.csv", index_col=0)
+    data = pd.read_csv("./data/metaf_yolo_500e.csv", index_col=0)
     img_file_names = os.listdir("./data/zod_yolo/images/val/")
     file_names_dict = get_files_by_ids(data.index.tolist(), img_file_names)
     dataset = {"df": data, 

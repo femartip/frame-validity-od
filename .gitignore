@@ -9,7 +9,7 @@ data/zod_yolo/images
 data/zod_yolo/labels
 
 models/assessors
-models/yolo_experiments
+models/yolo
 models/rf-detr
 models/faster-rcnn
 
