@@ -4,6 +4,8 @@ from argparse import Namespace
 
 from detectron2 import model_zoo
 from detectron2.config import CfgNode, get_cfg
+from detectron2.data import DatasetMapper, build_detection_train_loader
+from detectron2.data import transforms as T
 from detectron2.data.datasets import register_coco_instances
 from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
 from detectron2.evaluation import COCOEvaluator
@@ -15,22 +17,37 @@ class Trainer(DefaultTrainer):
     @classmethod
     def build_evaluator(cls, cfg, dataset_name, output_folder=None):
         if output_folder is None:
-            output_folder = os.path.join(cfg.OUTPUT_DIR, cfg.RESULT_SUBDIR)
+            output_folder = cfg.OUTPUT_DIR
         return COCOEvaluator(dataset_name, cfg, True, output_folder)
 
+    @classmethod
+    def build_train_loader(cls, cfg):
+        aug = [
+            T.RandomFlip(horizontal=True, vertical=False),
+            T.RandomBrightness(0.8, 1.2),
+            T.RandomContrast(0.8, 1.2),
+            T.RandomSaturation(0.8, 1.2),
+            T.ResizeShortestEdge(
+                cfg.INPUT.MIN_SIZE_TRAIN,
+                cfg.INPUT.MAX_SIZE_TRAIN,
+                cfg.INPUT.MIN_SIZE_TRAIN_SAMPLING,
+            ),
+        ]
+        mapper = DatasetMapper(cfg, is_train=True, augmentations=aug)
+        return build_detection_train_loader(cfg, mapper=mapper)
 
 def build_config(args: Namespace) -> CfgNode:
     cfg = get_cfg()
-    cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"))
+    cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"))
     cfg.DATASETS.TRAIN = ("train",)
     cfg.DATASETS.TEST = ("valid",)
     cfg.DATALOADER.NUM_WORKERS = 16
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(OBJECT_CLASSES)
-    cfg.OUTPUT_DIR = "./models/faster_rcnn/"
-    cfg.SOLVER.IMS_PER_BATCH = 22
-    cfg.SOLVER.BASE_LR = 0.025
-    cfg.SOLVER.MAX_ITER = 90000
-    cfg.SOLVER.STEPS = (60000, 80000)
+    cfg.OUTPUT_DIR = "./models/faster-rcnn/"
+    cfg.SOLVER.IMS_PER_BATCH = 16
+    cfg.SOLVER.BASE_LR = 0.001
+    cfg.SOLVER.MAX_ITER = 150000
+    cfg.SOLVER.STEPS = (80000, 110000)
     cfg.SOLVER.WARMUP_ITERS = 1000
     cfg.SOLVER.CHECKPOINT_PERIOD = 5000
     cfg.TEST.EVAL_PERIOD = 1000
@@ -74,9 +91,6 @@ if __name__ == "__main__":
     print("Command Line Args:", args)
     launch(
         main,
-        args.num_gpus,
-        num_machines=args.num_machines,
-        machine_rank=args.machine_rank,
-        dist_url=args.dist_url,
+        1,
         args=(args,),
     )

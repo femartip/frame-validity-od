@@ -5,6 +5,7 @@ import pandas as pd
 import re
 import json
 from dotenv import dotenv_values
+from tqdm import tqdm
 
 import base64
 from tenacity import retry as tenacity_retry, wait_exponential, stop_after_delay, RetryError
@@ -204,13 +205,13 @@ def get_response(llm: str, prompt: list) -> str:
 
     elif llm == "openai":    
         # OpenAI conifg
-        client = OpenAI(api_key=dotenv_values(".env")["OPENAI_API_KEY"],) 
+        client = OpenAI(api_key=dotenv_values(".env")["OPENAI_KEY"],) 
         response = client.chat.completions.create(
-            model="gpt-5-mini",
+            model="gpt-5-mini-2025-08-07",
             messages=[
                 {"role": "user", "content": prompt}            #type: ignore
             ],
-            extra_body={"reasoning": {"enabled": True}})
+            )
         return str(response.choices[0].message.content)
     else:
         raise ValueError()
@@ -231,7 +232,7 @@ def feature_generation(llm: str, file_names_dict: dict, feature_str: str, img_id
     #Feature generation
     rows = []
     img_ids = img_ids or list(file_names_dict.keys())
-    for img_id in img_ids[:100]:
+    for img_id in tqdm(img_ids[:900]):
         image_file_path = "./data/zod_yolo/images/val/" + file_names_dict[img_id]
         img_query = generate_feature_query(feature_str, image_file_path, llm)
         
@@ -259,8 +260,8 @@ if __name__ == "__main__":
     file_names_dict = get_files_by_ids(data.index.tolist(), img_file_names)
     dataset = {"df": data, 
                 "prefix": "zod", 
-                "name": "Zenseact Frames Dataset", 
-                "description": "High-quality, frame-centric autonomous driving dataset with dense 2D/3D annotations, designed to evaluate spatial scene understanding without relying on temporal context.", 
+                "name": "Object Detection Dataset", 
+                "description": "High-quality, frame-centric autonomous driving dataset with dense 2D, designed to evaluate object detection systems.", 
                 "image_path": "./data/zod_yolo/images/val/",
                 "img_file_names": file_names_dict,
                 #"target_column": "",
