@@ -49,8 +49,7 @@ def _convert_frame(frame: ZodFrame, classes: List[str], anonymization: Anonymiza
             "area": round(obj.box2d.area, 2),
             "iscrowd": obj.subclass == "Unclear",
         }
-        for obj_idx, obj in enumerate(objs)
-        if obj.name in classes
+        for obj_idx, obj in enumerate(objs) if obj.name in classes
     ]
     return image_dict, anno_dicts
 
@@ -67,7 +66,7 @@ def generate_coco_json(
     """Generate COCO JSON file from the ZOD dataset."""
     if frame_ids is None:
         assert split in ["train", "val"], f"Unknown split: {split}"
-        frame_ids = list(dataset.get_split(split))
+        frame_ids = list(dataset.get_split(split))      #type: ignore
     frame_infos = [dataset[frame_id] for frame_id in frame_ids]
     _convert_frame_w_classes = partial(_convert_frame, classes=classes, anonymization=anonymization, use_png=use_png)
     results = process_map(
@@ -106,15 +105,16 @@ def generate_coco_json(
 
 
 # Use typer instead of argparse
-def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full", anonymization: Anonymization = Anonymization.BLUR, use_png: bool = False):
-    classes = OBJECT_CLASSES
+def convert_to_coco(dataset_root: str, output_dir: str, version: str = "full", anonymization: Anonymization = Anonymization.BLUR, use_png: bool = False):
+    #classes = OBJECT_CLASSES
+    classes = ['Vehicle', 'Pedestrian', 'VulnerableVehicle']
     # check that classes are valid
     for cls in classes:
         if cls not in OBJECT_CLASSES:
             raise ValueError(f"ERROR: Invalid class: {cls}.")
     print(f"Converting ZOD to COCO format. Version: {version}, anonymization: {anonymization}, classes: {classes}")
     
-    zod_frames = ZodFrames(str(dataset_root), version)
+    zod_frames = ZodFrames(str(dataset_root), version)      #type: ignore
 
     base_name = f"zod_{version}_{anonymization}"
     if use_png:
@@ -122,26 +122,26 @@ def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full",
 
     os.makedirs(output_dir, exist_ok=True)
 
+    """
     train_ids = list(zod_frames.get_split("train"))
     rng = random.Random(42)
     rng.shuffle(train_ids)
     split_idx = int(len(train_ids) * 0.8)
     train_ids_80 = train_ids[:split_idx]
     val_ids_20 = train_ids[split_idx:]
-
+    """
     coco_json_train = generate_coco_json(
         zod_frames,
         split="train",
         classes=classes,
         anonymization=anonymization,
         use_png=use_png,
-        frame_ids=train_ids_80,
-        desc="Converting train (80% of original train) frames",
+        desc="Converting train frames",
     )
     with open(os.path.join(output_dir, f"{base_name}_train.json"), "w") as f:
         json.dump(coco_json_train, f)
 
-    coco_json_val = generate_coco_json(
+    """coco_json_val = generate_coco_json(
         zod_frames,
         split="train",
         classes=classes,
@@ -151,7 +151,7 @@ def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full",
         desc="Converting val (20% of original train) frames",
     )
     with open(os.path.join(output_dir, f"{base_name}_val.json"), "w") as f:
-        json.dump(coco_json_val, f)
+        json.dump(coco_json_val, f)"""
 
     coco_json_test = generate_coco_json(
         zod_frames,
@@ -166,7 +166,7 @@ def convert_to_coco(dataset_root: Path, output_dir: Path, version: str = "full",
 
     print("Successfully converted ZOD to COCO format. Output files:")
     print(f"    train:  {output_dir}/{base_name}_train.json")
-    print(f"    val:    {output_dir}/{base_name}_val.json")
+    #print(f"    val:    {output_dir}/{base_name}_val.json")
     print(f"    test:   {output_dir}/{base_name}_test.json")
 
 

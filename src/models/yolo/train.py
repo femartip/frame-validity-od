@@ -1,9 +1,9 @@
-from ultralytics import YOLO
+from ultralytics import YOLO  #type: ignore
 from pathlib import Path
 import tensorboard
 
 def load_model():
-    model_path = "./models/yolo11l.pt"
+    model_path = "./models/yolo11s.pt"
     #model_path = Path("./models/yolo_experiments/train/weights/last.pt")
 
     if Path(model_path).exists():
@@ -11,15 +11,15 @@ def load_model():
         model = YOLO(model_path)
     else:
         print("Model does not exist, will load new model")
-        model = YOLO("yolo11l.pt")
+        model = YOLO("yolo11s.pt")
 
     return model
 
 def train_yolo(model):
     train_results = model.train(
         data="./data/zod_yolo/dataset.yaml",  # Path to dataset configuration file
-        project="./models/yolo_experiments/",
-        name="train1500e",
+        project="./models/yolo/",
+        name="train",
         amp=False,
         #resume=True,   # Resuming training
         imgsz=512,
@@ -27,9 +27,9 @@ def train_yolo(model):
         seed=43,
         fraction=0.8,
         device=0,
-        patience=3,
-        epochs=1500,  # Number of training epochs
-        batch=16,
+        patience=10,
+        epochs=5,  # Number of training epochs
+        batch=64,
         plots=True,
         exist_ok=True,
         lr0=0.001,

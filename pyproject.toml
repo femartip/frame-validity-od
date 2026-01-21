@@ -8,7 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.11, <3.13"
 dependencies = [
-    "zod[cli] (>=0.7,<0.8)",
+    "zod[cli] @ git+https://github.com/zenseact/zod.git@01ecd32",
     "matplotlib (>=3.10.3,<4.0.0)",
     "opencv-python (>=4.11.0.86,<5.0.0.0)",
     "plotly (>=6.1.2,<7.0.0)",
@@ -63,6 +63,7 @@ torch = {source = "pytorch-cu128"}
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+zod = { git = "https://github.com/zenseact/zod.git", rev = "01ecd32", extras = ["cli"] }
 
 [dependency-groups]
 dev = [
