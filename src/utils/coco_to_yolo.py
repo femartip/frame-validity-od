@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from ultralytics.utils import DATASETS_DIR, LOGGER, NUM_THREADS, TQDM
+from ultralytics.utils import DATASETS_DIR, LOGGER, NUM_THREADS, TQDM    #type:ignore
 from ultralytics.utils.downloads import download, zip_directory
 from ultralytics.utils.files import increment_path
 
@@ -19,7 +19,7 @@ def to_yaml(save_dir: str, dataset_info: dict, has_test: bool) -> None:
 path: {save_dir.absolute()}
 train: images/train
 val: images/val
-"""
+"""     
     if has_test:
         yaml_content += "test: images/test\n"
 
@@ -38,8 +38,8 @@ names:
 
 
 
-def convert_coco(labels_dir: str,save_dir: str,use_keypoints: bool = False, copy_images: bool = True) -> None:
-    save_dir = Path(save_dir)
+def convert_coco(labels_dir: str, save_dir: str,use_keypoints: bool = False, copy_images: bool = True) -> None:
+    save_dir = Path(save_dir)   #type:ignore
     
     dataset_info = {'names': {}, 'nc': 0}
     
@@ -58,8 +58,8 @@ def convert_coco(labels_dir: str,save_dir: str,use_keypoints: bool = False, copy
             LOGGER.warning(f"Skipping JSON with unknown split: {json_file}")
             continue
         
-        images_dir = save_dir / 'images' / split
-        labels_dir_out = save_dir / 'labels' / split
+        images_dir = save_dir / 'images' / split   #type:ignore            
+        labels_dir_out = save_dir / 'labels' / split  #type:ignore
         images_dir.mkdir(parents=True, exist_ok=True)
         labels_dir_out.mkdir(parents=True, exist_ok=True)
 

@@ -62,9 +62,34 @@ def discretize_metrics(metrics_dict: dict, threshold: float) -> dict:
     return metrics_dict
 
 
-def run_yolo(model: YOLO, image_root: str, output_dir: str, output_name: str | None = None, discretize_threshold: float | None = None, save_zero_iou: bool = False) -> None:
+def save_iou0_image(image, pred_boxes, gt_boxes, iou, output_dir, image_name):
+    os.makedirs(output_dir, exist_ok=True)
+    img = image.copy()
+    if isinstance(pred_boxes, torch.Tensor):
+        pred_boxes = pred_boxes.cpu().numpy().tolist()
+    if isinstance(gt_boxes, torch.Tensor):
+        gt_boxes = gt_boxes.cpu().numpy().tolist()
+    for box in pred_boxes:
+        x1, y1, x2, y2 = map(int, box)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+    for box in gt_boxes:
+        x1, y1, x2, y2 = map(int, box)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+    cv2.putText(img, f"IoU: {iou:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.imwrite(os.path.join(output_dir, f"{image_name}_iou0.jpg"), img)
+
+
+def save_predictions(predictions_dict, output_dir, filename):
+    os.makedirs(output_dir, exist_ok=True)
+    json_output_path = os.path.join(output_dir, filename)
+    with open(json_output_path, "w") as json_file:
+        json.dump(predictions_dict, json_file, indent=4)
+    print(f"Predictions saved to {json_output_path}")
+
+
+def run_yolo(model: YOLO, image_root: str, output_dir: str, output_name: str | None = None, discretize_threshold: float | None = None, save_zero_iou: bool = False, save_preds: bool = False) -> None:
     detections_val = {}
-    detections_iou0 = {}
+    predictions_val = {}
     iou_vals = []
     lrp_vals = []
     image_files = list_images(image_root)
@@ -98,7 +123,8 @@ def run_yolo(model: YOLO, image_root: str, output_dir: str, output_name: str | N
             metrics_dict["confidence"] = boxes_conf
 
         if save_zero_iou and metrics_dict.get("iou") == 0.0:
-            detections_iou0[image_file.split("_")[0]] = metrics_dict
+            image_name = os.path.splitext(image_file)[0]
+            save_iou0_image(image, detections[0]["boxes"], annotations[0]["boxes"], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
 
         if discretize_threshold != None:
             metrics_dict = discretize_metrics(metrics_dict, discretize_threshold)
@@ -110,19 +136,25 @@ def run_yolo(model: YOLO, image_root: str, output_dir: str, output_name: str | N
             lrp_vals.append(lrp_val)
         image_id = image_file.split("_")[0]
         detections_val[image_id] = metrics_dict
+        if save_preds:
+            predictions_val[image_id] = {
+                "boxes": boxes,
+                "scores": boxes_conf,
+                "labels": boxes_cls,
+            }
 
     print(f"Mean IoU: {np.mean(iou_vals):.4f}")
     print(f"Mean LRP: {np.mean(lrp_vals):.4f}")
 
     if output_name != None:
         save_to_json(detections_val, output_dir, output_name)
-    if save_zero_iou:
-        save_to_json(detections_iou0, output_dir, "detections_iou0.json")
+    if save_preds:
+        save_predictions(predictions_val, output_dir, "predictions.json")
 
 
-def run_rf_detr(model: RFDETRBase, image_root: str, output_dir: str, output_name: str | None = None, discretize_threshold: float | None = None, save_zero_iou: bool = False) -> None:
+def run_rf_detr(model: RFDETRBase, image_root: str, output_dir: str, output_name: str | None = None, discretize_threshold: float | None = None, save_zero_iou: bool = False, save_preds: bool = False) -> None:
     detections_val = {}
-    detections_iou0 = {}
+    predictions_val = {}
     iou_vals = []
     lrp_vals = []
     image_files = list_images(image_root)
@@ -156,7 +188,8 @@ def run_rf_detr(model: RFDETRBase, image_root: str, output_dir: str, output_name
             metrics_dict["confidence"] = boxes_conf
 
         if save_zero_iou and metrics_dict.get("iou") == 0.0:
-            detections_iou0[image_file.split("_")[0]] = metrics_dict
+            image_name = os.path.splitext(image_file)[0]
+            save_iou0_image(image, detections[0]["boxes"], annotations[0]["boxes"], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
 
         if discretize_threshold != None:
             metrics_dict = discretize_metrics(metrics_dict, discretize_threshold)
@@ -169,13 +202,20 @@ def run_rf_detr(model: RFDETRBase, image_root: str, output_dir: str, output_name
         image_id = image_file.split("_")[0]
         detections_val[image_id] = metrics_dict
 
+        if save_preds:
+            predictions_val[image_id] = {
+                "boxes": boxes,
+                "scores": boxes_conf,
+                "labels": boxes_cls,
+            }
+
     print(f"Mean IoU: {np.mean(iou_vals):.4f}")
     print(f"Mean LRP: {np.mean(lrp_vals):.4f}")
 
     if output_name != None:
         save_to_json(detections_val, output_dir, output_name)
-    if save_zero_iou:
-        save_to_json(detections_iou0, output_dir, "detections_iou0.json")
+    if save_preds:
+        save_predictions(predictions_val, output_dir, "predictions.json")
 
 
 def annotations_from_coco(dataset_dict: dict) -> list[dict]:
@@ -191,9 +231,9 @@ def annotations_from_coco(dataset_dict: dict) -> list[dict]:
     }]
 
 
-def run_faster_rcnn(predictor: DefaultPredictor, dataset: list[dict], output_dir: str, output_name: str | None = None, discretize_threshold: float | None = None, save_zero_iou: bool = False) -> None:
+def run_faster_rcnn(predictor: DefaultPredictor, dataset: list[dict], output_dir: str, output_name: str | None = None, discretize_threshold: float | None = None, save_zero_iou: bool = False, save_preds: bool = False) -> None:
     detections_val = {}
-    detections_iou0 = {}
+    predictions_val = {}
     iou_vals = []
     lrp_vals = []
     for d in tqdm(dataset):
@@ -226,7 +266,8 @@ def run_faster_rcnn(predictor: DefaultPredictor, dataset: list[dict], output_dir
             metrics_dict["confidence"] = scores.tolist()
 
         if save_zero_iou and metrics_dict.get("iou") == 0.0:
-            detections_iou0[str(d.get("image_id", os.path.basename(image_path)))] = metrics_dict
+            image_name = os.path.splitext(os.path.basename(image_path))[0]
+            save_iou0_image(image, detections[0]["boxes"], annotations[0]["boxes"], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
 
         if discretize_threshold != None:
             metrics_dict = discretize_metrics(metrics_dict, discretize_threshold)
@@ -239,13 +280,20 @@ def run_faster_rcnn(predictor: DefaultPredictor, dataset: list[dict], output_dir
         image_id = str(d.get("image_id", os.path.basename(image_path)))
         detections_val[image_id] = metrics_dict
 
+        if save_preds:
+            predictions_val[image_id] = {
+                "boxes": boxes.cpu().numpy().tolist(),
+                "scores": scores.cpu().numpy().tolist(),
+                "labels": labels.cpu().numpy().tolist(),
+            }
+
     print(f"Mean IoU: {np.mean(iou_vals):.4f}")
     print(f"Mean LRP: {np.mean(lrp_vals):.4f}")
 
     if output_name != None:
         save_to_json(detections_val, output_dir, output_name)
-    if save_zero_iou:
-        save_to_json(detections_iou0, output_dir, "detections_iou0.json")
+    if save_preds:
+        save_predictions(predictions_val, output_dir, "predictions.json")
 
 
 def save_to_json(all_detections: dict, output_folder: str, filename: str) -> None:
@@ -280,10 +328,10 @@ def main():
         model = YOLO(model_path)
         if run_train:
             print(f"Processing YOLO train images from ./data/zod_yolo/images/train")
-            run_yolo(model, "./data/zod_yolo/images/train", "./results/yolo/", discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
+            run_yolo(model, "./data/zod_yolo/images/train", "./results/yolo/", discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
         if run_test:
             print(f"Processing YOLO test images from ./data/zod_yolo/images/test/")
-            run_yolo(model,"./data/zod_yolo/images/test/","./results/yolo/",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
+            run_yolo(model,"./data/zod_yolo/images/test/","./results/yolo/",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
 
     # Faster RCNN logic
     elif args.model == "faster-rcnn":
@@ -301,13 +349,12 @@ def main():
                 predictor,
                 train_dataset,
                 "results/faster-rcnn",
-                discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou,
-            )
+                discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
         if run_test:
             register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "test", "_annotations.coco.json"), ".")
             test_dataset = DatasetCatalog.get("test")
             print(f"Processing Faster R-CNN test dataset ({len(test_dataset)} images)")
-            run_faster_rcnn(predictor,test_dataset,"results/faster-rcnn",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
+            run_faster_rcnn(predictor,test_dataset,"results/faster-rcnn",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
 
     # Rfdetr logic
     elif args.model == "rf-detr":
@@ -315,10 +362,10 @@ def main():
         model = RFDETRBase(pretrain_weights=model_path)
         if run_train:
             print(f"Processing RF-DETR train images from {args.yolo_train}")
-            run_rf_detr(model,"./data/zod_yolo/images/train/","results/rf-detr",discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
+            run_rf_detr(model,"./data/zod_yolo/images/train/","results/rf-detr",discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
         if run_test:
             print(f"Processing RF-DETR test images from {args.yolo_test}")
-            run_rf_detr(model,"./data/zod_yolo/images/test/","results/rf-detr",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
+            run_rf_detr(model,"./data/zod_yolo/images/test/","results/rf-detr",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
 
 
 

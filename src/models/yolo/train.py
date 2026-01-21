@@ -21,10 +21,13 @@ def train_yolo(model):
         project="./models/yolo/",
         name="train",
         amp=False,
+        save=True,
+        save_period=5,
         #resume=True,   # Resuming training
         imgsz=512,
         pretrained=True,
         seed=43,
+        val=False,
         fraction=0.8,
         device=0,
         patience=10,
@@ -50,4 +53,4 @@ def eval_yolo(model):
 if __name__ == "__main__":
     model = load_model()
     train_yolo(model)
-    eval_yolo(model)
+    #eval_yolo(model)

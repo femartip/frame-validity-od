@@ -16,6 +16,7 @@ models/faster-rcnn
 InternImage
 
 results/yolo/images
+results/yolo/iou0_images
 results/internimage/images
 runs
 
