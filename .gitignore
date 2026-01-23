@@ -18,6 +18,8 @@ InternImage
 results/yolo/images
 results/yolo/iou0_images
 results/internimage/images
+results/faster-rcnn/iou0_images
+results/rf-detr/iou0_images
 runs
 
 .cache.sqlite

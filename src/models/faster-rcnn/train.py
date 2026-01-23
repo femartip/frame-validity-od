@@ -65,8 +65,8 @@ def build_config(args: Namespace) -> CfgNode:
 
 
 def register_dataset(zod_path, train_json, val_json, image_root):
-    register_coco_instances("train", {}, osp.join(zod_path, "train", train_json), image_root)
-    register_coco_instances("valid", {}, osp.join(zod_path, "valid", val_json), image_root)
+    register_coco_instances("train", {}, osp.join(zod_path, train_json), image_root)
+    register_coco_instances("valid", {}, osp.join(zod_path, val_json), image_root)
 
 
 def main(args: Namespace):

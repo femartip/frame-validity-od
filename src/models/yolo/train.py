@@ -3,7 +3,7 @@ from pathlib import Path
 import tensorboard
 
 def load_model():
-    model_path = "./models/yolo11s.pt"
+    model_path = "./models/yolo11l.pt"
     #model_path = Path("./models/yolo_experiments/train/weights/last.pt")
 
     if Path(model_path).exists():
@@ -11,8 +11,7 @@ def load_model():
         model = YOLO(model_path)
     else:
         print("Model does not exist, will load new model")
-        model = YOLO("yolo11s.pt")
-
+        model = YOLO("yolo11l.pt")
     return model
 
 def train_yolo(model):
@@ -25,17 +24,19 @@ def train_yolo(model):
         save_period=5,
         #resume=True,   # Resuming training
         imgsz=512,
+        rect=True,
         pretrained=True,
         seed=43,
         val=False,
         fraction=0.8,
         device=0,
         patience=10,
-        epochs=5,  # Number of training epochs
-        batch=64,
+        epochs=200,  # Number of training epochs
+        batch=32,
         plots=True,
         exist_ok=True,
         lr0=0.001,
+        multi_scale=0.25,
     )
 
     print("Training results:")

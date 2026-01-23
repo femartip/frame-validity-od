@@ -62,19 +62,25 @@ def discretize_metrics(metrics_dict: dict, threshold: float) -> dict:
     return metrics_dict
 
 
-def save_iou0_image(image, pred_boxes, gt_boxes, iou, output_dir, image_name):
+def save_iou0_image(image, pred, gt, iou, output_dir, image_name):
     os.makedirs(output_dir, exist_ok=True)
     img = image.copy()
+    pred_boxes = pred["boxes"]
+    gt_boxes = gt["boxes"]
     if isinstance(pred_boxes, torch.Tensor):
         pred_boxes = pred_boxes.cpu().numpy().tolist()
+        pred_labels =  pred["labels"].cpu().numpy().tolist()
     if isinstance(gt_boxes, torch.Tensor):
         gt_boxes = gt_boxes.cpu().numpy().tolist()
-    for box in pred_boxes:
+        gt_labels = gt["labels"].cpu().numpy().tolist()
+    for i, box in enumerate(pred_boxes):
         x1, y1, x2, y2 = map(int, box)
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-    for box in gt_boxes:
+        cv2.putText(img, f"pred, cls {pred_labels[i]}", (x1, y1+5), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 3)
+    for j, box in enumerate(gt_boxes):
         x1, y1, x2, y2 = map(int, box)
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(img, f"gt, cls {gt_labels[j]}", (x1, y1+5), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
     cv2.putText(img, f"IoU: {iou:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     cv2.imwrite(os.path.join(output_dir, f"{image_name}_iou0.jpg"), img)
 
@@ -117,14 +123,15 @@ def run_yolo(model: YOLO, image_root: str, output_dir: str, output_name: str | N
             metrics_dict = {"iou": 0.0, "lrp": 0.0, "confidence": []}
         elif annotations[0]["boxes"].numel() == 0:
             print(f"WARNING: No annotations found for image {image_path}.")
-            metrics_dict = {"iou": None, "lrp": None, "confidence": []}
+            #metrics_dict = {"iou": None, "lrp": None, "confidence": []}
+            continue
         else:
             metrics_dict = metrics.get_metrics(detections, annotations, metrics=["iou", "lrp"])
             metrics_dict["confidence"] = boxes_conf
 
         if save_zero_iou and metrics_dict.get("iou") == 0.0:
             image_name = os.path.splitext(image_file)[0]
-            save_iou0_image(image, detections[0]["boxes"], annotations[0]["boxes"], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
+            save_iou0_image(image, detections[0], annotations[0], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
 
         if discretize_threshold != None:
             metrics_dict = discretize_metrics(metrics_dict, discretize_threshold)
@@ -189,7 +196,7 @@ def run_rf_detr(model: RFDETRBase, image_root: str, output_dir: str, output_name
 
         if save_zero_iou and metrics_dict.get("iou") == 0.0:
             image_name = os.path.splitext(image_file)[0]
-            save_iou0_image(image, detections[0]["boxes"], annotations[0]["boxes"], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
+            save_iou0_image(image, detections[0], annotations[0], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
 
         if discretize_threshold != None:
             metrics_dict = discretize_metrics(metrics_dict, discretize_threshold)
@@ -267,7 +274,7 @@ def run_faster_rcnn(predictor: DefaultPredictor, dataset: list[dict], output_dir
 
         if save_zero_iou and metrics_dict.get("iou") == 0.0:
             image_name = os.path.splitext(os.path.basename(image_path))[0]
-            save_iou0_image(image, detections[0]["boxes"], annotations[0]["boxes"], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
+            save_iou0_image(image, detections[0], annotations[0], metrics_dict["iou"], os.path.join(output_dir, "iou0_images"), image_name)
 
         if discretize_threshold != None:
             metrics_dict = discretize_metrics(metrics_dict, discretize_threshold)
@@ -342,7 +349,8 @@ def main():
         cfg.freeze()
         predictor = DefaultPredictor(cfg)
         if run_train:
-            register_coco_instances("train", {}, os.path.join("./data/zod_coco/", "train", "_annotations.coco.json"), ".")
+            #register_coco_instances("train", {}, os.path.join("./data/zod_coco/", "train", "_annotations.coco.json"), ".")
+            register_coco_instances("train", {}, os.path.join("./data/zod_coco/", "zod_full_Anonymization.BLUR_train.json"), ".")
             train_dataset = DatasetCatalog.get("train")
             print(f"Processing Faster R-CNN train dataset ({len(train_dataset)} images)")
             run_faster_rcnn(
@@ -351,7 +359,8 @@ def main():
                 "results/faster-rcnn",
                 discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
         if run_test:
-            register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "test", "_annotations.coco.json"), ".")
+            #register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "test", "_annotations.coco.json"), ".")
+            register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "zod_full_Anonymization.BLUR_test.json"), ".")
             test_dataset = DatasetCatalog.get("test")
             print(f"Processing Faster R-CNN test dataset ({len(test_dataset)} images)")
             run_faster_rcnn(predictor,test_dataset,"results/faster-rcnn",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
