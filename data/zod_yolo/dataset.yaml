@@ -3,5 +3,5 @@ names:
   1: VulnerableVehicle
   2: Pedestrian
 test: images/test
-val:
 train: images/train
+val: images/val

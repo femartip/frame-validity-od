@@ -24,7 +24,7 @@ def make_dirs(dir):
 
 def convert_coco_json(json_dir: str, save_dir:str, copy_images: bool=True) -> None:
     """Converts COCO JSON format to YOLO label format, with options for segments and class mapping."""
-    save_dir = make_dirs(save_dir)  # output directory
+    save_dir = make_dirs(save_dir)  # type: ignore # output directory 
     # Import json
     for json_file in sorted(Path(json_dir).resolve().glob("*.json")):
         split = os.path.basename(json_file).split("_")[-1].strip(".json") 
@@ -89,7 +89,7 @@ def convert_coco_json(json_dir: str, save_dir:str, copy_images: bool=True) -> No
                     image_folder = Path(os.path.join(save_dir, "images", split))
                     image_folder.mkdir(exist_ok=True)
                     save_path = Path(os.path.join(image_folder, file_name))
-                    cv2.imwrite(save_path, img)  # Save image
+                    cv2.imwrite(save_path, img)  # type: ignore # Save image
 
             # Write
             with open((fn / file_name).with_suffix(".txt"), "a") as file:
@@ -100,6 +100,7 @@ def convert_coco_json(json_dir: str, save_dir:str, copy_images: bool=True) -> No
     yaml_dict = {
         # "path": "yolo_datasets",
         "train": "images/train",
+        "val": "images/val",
         "test": "images/test",
         "names": {k: v for k, v in categories_dict.items()}
     }
