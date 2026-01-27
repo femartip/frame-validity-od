@@ -18,7 +18,11 @@ def combine_results(data: pd.DataFrame, predictions: dict) -> pd.DataFrame:
             continue
 
         instance_dict = instance.to_dict()
-        instance_dict["conf"] = statistics.mean(prediction["confidence"]) if prediction["confidence"] != [] else 0.0
+        instance_dict["num_detections"] = len(prediction["confidence"])
+        instance_dict["max_conf"] = max(prediction["confidence"]) if prediction["confidence"] != [] else 0.0
+        instance_dict["min_conf"] = min(prediction["confidence"]) if prediction["confidence"] != [] else 0.0
+        instance_dict["mean_conf"] = statistics.mean(prediction["confidence"]) if prediction["confidence"] != [] else 0.0
+        instance_dict["std_conf"] = statistics.stdev(prediction["confidence"]) if len(prediction["confidence"]) > 1 else 0.0
         instance_dict["iou"] = prediction["iou"] 
         instance_dict["lrp"] = prediction["lrp"]
         

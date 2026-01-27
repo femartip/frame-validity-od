@@ -296,7 +296,7 @@ def run_faster_rcnn(predictor: DefaultPredictor, dataset: list[dict], output_dir
 
     print(f"Mean IoU: {np.mean(iou_vals):.4f}")
     print(f"Mean LRP: {np.mean(lrp_vals):.4f}")
-
+    
     if output_name != None:
         save_to_json(detections_val, output_dir, output_name)
     if save_preds:
@@ -357,7 +357,7 @@ def main():
                 predictor,
                 train_dataset,
                 "results/faster-rcnn",
-                discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
+                discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
         if run_test:
             #register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "test", "_annotations.coco.json"), ".")
             register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "zod_full_Anonymization.BLUR_test.json"), ".")

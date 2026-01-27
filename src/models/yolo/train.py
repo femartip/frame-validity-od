@@ -23,9 +23,11 @@ def upload_to_hub(model_dir: str, repo_name: str, token: str) -> None:
             api.upload_file(path_or_fileobj=os.path.join(model_dir, filename), path_in_repo=filename, repo_id=repo_name, repo_type="model")
 
 
-def load_model():
-    model_path = "./models/yolo11l.pt"
-    #model_path = Path("./models/yolo_experiments/train/weights/last.pt")
+def load_model(resume: bool) -> YOLO:
+    if resume:
+        model_path = Path("./models/yolo/train/weights/last.pt")
+    else:
+        model_path = "./models/yolo11l.pt"
 
     if Path(model_path).exists():
         print("Loading existing model")
@@ -35,16 +37,17 @@ def load_model():
         model = YOLO("yolo11l.pt")
     return model
 
-def train_yolo(model):
+def train_yolo(model: YOLO, resume: bool)-> dict:
     train_results = model.train(
         data="./data/zod_yolo/dataset.yaml",  # Path to dataset configuration file
         project="./models/yolo/",
+        save_dir="./models/yolo/train",
         name="train",
         workers=16,
         amp=False,
         save=True,
         save_period=10,
-        #resume=True,   # Resuming training
+        resume=resume,   # Resuming training
         imgsz=512,
         rect=True,
         pretrained=True,
@@ -55,7 +58,7 @@ def train_yolo(model):
         batch=32,
         plots=True,
         exist_ok=True,
-        lr0=0.01,
+        lr0=0.1,
         multi_scale=0.25,
     )
 
@@ -63,7 +66,7 @@ def train_yolo(model):
     print(train_results)
     return train_results
 
-def eval_yolo(model):
+def eval_yolo(model: YOLO) -> dict:
     # Evaluate the model's performance on the validation set
     metrics = model.val()
 
@@ -73,11 +76,12 @@ def eval_yolo(model):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument('--resume', action='store_true')
     parser.add_argument("--push-to-hub", action="store_true")
     args = parser.parse_args()
     
-    model = load_model()
-    train_yolo(model)
+    model = load_model(args.resume)
+    train_yolo(model, args.resume)
     #eval_yolo(model)
     if args.push_to_hub:
         upload_to_hub("./models/yolo/train", "femartip/yolo-zod", os.environ["HF_TOKEN"])
