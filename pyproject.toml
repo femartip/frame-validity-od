@@ -6,7 +6,7 @@ authors = [
     {name = "Felix",email = "felix.marti99@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.11, <3.13"
+requires-python = ">=3.11, <3.14"
 dependencies = [
     "zod[cli] @ git+https://github.com/zenseact/zod.git@01ecd32",
     "matplotlib (>=3.10.3,<4.0.0)",
@@ -60,6 +60,10 @@ priority = "explicit"
 [tool.poetry.dependencies]
 torchvision = {source = "pytorch-cu128"}
 torch = {source = "pytorch-cu128"}
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^7.1.0"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
