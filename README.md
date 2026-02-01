@@ -2,43 +2,42 @@
 
 Research code for **instance-level predictability / performance assessment of object detection systems** in driving scenes.
 
-This project supports the workflow described in the Obsidian PhD notes:
+This repo supports the workflow described in your Obsidian PhD notes:
 - Obsidian (paper + research log): `~/Documents/Obsedian/PhD/01 Predictability - OD/`
 - This repo (code + notebooks): `~/Documents/Github/Predictability-AD/`
 
-## Research goal (high level)
+## Research goal
 
 Build lightweight **assessor models** that predict, for each driving-frame instance, how well a given object detector will perform.
 
-Concretely:
 - Primary model `S`: an object detector (e.g., YOLO / Faster R-CNN / RF-DETR)
-- Meta-features `φ(I)`: context extracted from each frame (metadata, weather, image quality, system outputs, embeddings)
+- Meta-features `φ(I)`: context extracted per frame (dataset metadata, weather, image quality, embeddings, detector outputs)
 - Target `V(I,S)`: an instance-level validity indicator (e.g., meanIoU-with-zeros, LRP)
 - Assessor `M`: a meta-model trained so that `M(φ(I), S) ≈ V(I,S)`
 
-The working paper draft lives in Obsidian:
+Draft write-up lives in Obsidian:
 - `PhD/01 Predictability - OD/Paper.md`
 
 ## Repo layout
 
 - `src/data/`
-  - data prep and feature extraction (tabular meta-features, LLM feature extraction, embeddings)
+  - feature extraction and dataset building
 - `src/models/`
-  - detector training / inference helpers and metric computation
+  - detector inference + per-instance metric computation
 - `src/utils/`
-  - dataset conversion utilities (COCO/YOLO/ZOD) + BRISQUE utilities
+  - conversion utilities (ZOD → COCO → YOLO)
 - `notebooks/`
-  - EDA, dataset splits, assessor training and analysis
+  - analysis + assessor training notebooks
 - `data/`
-  - cached CSVs used by notebooks/scripts (e.g., metafeatures, embeddings)
+  - cached CSVs / artifacts used by scripts and notebooks
 - `results/`
-  - outputs, plots, tables
+  - detections JSONs, tables, plots
 
-## Environment / installation
+## Installation
 
-This repo is configured as a Python project via `pyproject.toml`.
+Python project defined in `pyproject.toml`.
 
-### Option 1: Poetry
+### Poetry
 
 ```bash
 cd Predictability-AD
@@ -46,49 +45,162 @@ poetry install
 poetry shell
 ```
 
-### Option 2: pip (less reproducible)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -U pip
-pip install -e .
-```
-
-### Notes
+### Notes (important)
 
 - Python: `>=3.11, <3.14`
-- The project depends on a CUDA-specific PyTorch index (`cu128`). If you don’t have CUDA, you may need to adapt the torch/torchvision pins.
-- Some dependencies pull from git (e.g. ZOD, RF-DETR).
+- Some deps are heavy and/or pinned (CUDA torch, git deps such as ZOD and RF-DETR). If you don’t have CUDA, expect to adjust `torch/torchvision` pins.
 
-## Data
+## Data expectations / local layout
 
-Experiments reference **Zenseact Open Dataset (ZOD) Frames**.
+This project assumes data is placed under `./data/`.
 
-You’ll need to obtain/configure access separately (see the notebooks that use `zod` tooling).
+### ZOD Frames
 
-## Typical workflow
+- Place ZOD under:
+  - `data/zod/`
 
-1) Create the tabular dataset / meta-features
-- see `src/data/zod_to_tabular.py` and the notebooks `notebooks/zod_to_tabular.ipynb`
+Scripts use:
+- `ZodFrames(dataset_root="./data/zod", version="full")`
 
-2) Train / run detectors + compute per-instance targets
-- see `src/models/run_inference.py`
+### COCO and YOLO derived datasets
 
-3) Train assessors
-- see notebooks:
-  - `notebooks/assessors.ipynb`
-  - `notebooks/assessors_classification.ipynb`
-  - `notebooks/assess_pred_analysis.ipynb`
+The repo includes scripts to generate:
+- COCO annotations: `data/zod_coco/*.json`
+- YOLO dataset: `data/zod_yolo/images/{train,val,test}/` and `data/zod_yolo/labels/{train,val,test}/`
 
-4) Write up results
-- Obsidian draft: `PhD/01 Predictability - OD/Paper.md`
+## End-to-end pipeline (recommended)
 
-## Outputs
+This is the minimal sequence that matches the current codebase.
 
-- Intermediate CSVs are kept under `data/`
-- Experimental outputs/plots under `results/`
+### 1) Convert ZOD → COCO
 
-## Citation
+```bash
+python src/utils/zod_to_coco.py
+```
 
-If you reuse this for your own work, cite the related paper/draft (once public). For now, this repo is research-in-progress.
+This writes (example names):
+- `data/zod_coco/zod_full_Anonymization.BLUR_train.json`
+- `data/zod_coco/zod_full_Anonymization.BLUR_val.json`
+- `data/zod_coco/zod_full_Anonymization.BLUR_test.json`
+
+### 2) Convert COCO → YOLO (and copy images)
+
+```bash
+python src/utils/coco_to_yolo.py
+```
+
+This creates:
+- `data/zod_yolo/images/...`
+- `data/zod_yolo/labels/...`
+- `data/zod_yolo/dataset.yaml`
+
+### 3) Build tabular meta-features (metadata + weather + image quality)
+
+```bash
+python src/data/zod_to_tabular.py 1000
+# add --resume to append without recomputing existing ids
+python src/data/zod_to_tabular.py 1000 --resume
+```
+
+Output:
+- `data/metafeatures.csv`
+
+### 4) (Optional) Build image embeddings (ResNet18 + PCA)
+
+```bash
+python src/data/build_embeddings.py --pca-dim 256
+```
+
+Output:
+- `data/image_embeddings.csv`
+
+### 5) (Optional) LLM-derived meta-features
+
+Requires a `.env` in repo root with keys referenced by the script:
+- `OPENAI_KEY`
+- `GOOGLE_API_KEY`
+
+Run:
+```bash
+python src/data/llm_feature_extraction.py openai
+# or
+python src/data/llm_feature_extraction.py gemini
+
+# resume mode reuses existing description/csv if present
+python src/data/llm_feature_extraction.py openai --resume
+```
+
+Outputs:
+- `data/llm_metafeatures_description.json`
+- `data/llm_metafeatures.csv`
+
+### 6) Run detector inference and compute per-instance IoU/LRP
+
+This produces per-image JSON with keys like `iou`, `lrp`, and confidence stats.
+
+```bash
+# YOLO
+python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test
+
+# Faster R-CNN
+python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test
+
+# RF-DETR
+python src/models/run_inference.py rf-detr <path-to-rfdetr-weights> --test
+```
+
+Outputs (examples):
+- `results/yolo/detections.json`
+- `results/faster-rcnn/detections.json`
+- `results/rf-detr/detections.json`
+
+You can discretize targets (for classification-style assessors):
+```bash
+python src/models/run_inference.py yolo <weights.pt> --test --discretize-threshold 0.5
+```
+
+### 7) Combine features + targets into a training table
+
+```bash
+# Use hand-crafted meta-features
+python src/data/combine_data_predictions.py yolo metafeatures
+
+# Use LLM meta-features
+python src/data/combine_data_predictions.py yolo llm-metafeatures
+
+# Use discretized detections
+python src/data/combine_data_predictions.py yolo metafeatures --discretize
+```
+
+Outputs (examples):
+- `data/yolo_metafeatures.csv`
+- `data/yolo_llm-metafeatures.csv`
+- `data/yolo_metafeatures_disc.csv`
+
+### 8) Train assessors / analyze results
+
+This part is currently notebook-driven:
+- `notebooks/assessors.ipynb`
+- `notebooks/assessors_classification.ipynb`
+- `notebooks/assess_pred_analysis.ipynb`
+
+## Results (current, from the draft)
+
+You already have an initial set of assessor results in the Obsidian paper draft.
+
+At a high level:
+- baselines using detector confidence already explain a chunk of variance,
+- richer meta-features improve performance modestly,
+- AutoGluon/ensembles tend to be strongest.
+
+For the full table/plots, see:
+- Obsidian: `PhD/01 Predictability - OD/Paper.md`
+- Repo outputs: `results/`
+
+## What I intentionally did NOT include here
+
+- Claims about final/production-ready numbers (this is research-in-progress)
+- A fully pinned, reproducible environment (CUDA + git deps makes that a separate effort)
+- Dataset download instructions for ZOD (depends on your access setup)
+
+If you want, next step is to add a `Makefile` or `scripts/` that runs the pipeline end-to-end with explicit paths.
