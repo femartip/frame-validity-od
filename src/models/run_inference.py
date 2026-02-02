@@ -317,6 +317,7 @@ def parse_args():
     parser.add_argument("model", choices=["yolo", "rf-detr", "faster-rcnn"], type=str)
     parser.add_argument("checkpoint", type=str)
     parser.add_argument("--train", action="store_true")
+    parser.add_argument("--validate", action="store_true")
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--discretize-threshold", type=float, default=None)
     parser.add_argument("--save-zero-iou", action="store_true")
@@ -325,6 +326,7 @@ def parse_args():
 def main():
     args = parse_args()
     run_train = args.train
+    run_validate = args.validate    
     run_test = args.test
 
     output_name = "detections.json" if args.discretize_threshold == None else "detections_disc.json"
@@ -335,7 +337,10 @@ def main():
         model = YOLO(model_path)
         if run_train:
             print(f"Processing YOLO train images from ./data/zod_yolo/images/train")
-            run_yolo(model, "./data/zod_yolo/images/train", "./results/yolo/", discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
+            run_yolo(model, "./data/zod_yolo/images/train", "./results/yolo/", discretize_threshold=args.discretize_threshold)
+        if run_validate:
+            print(f"Processing YOLO validation images from ./data/zod_yolo/images/val/")
+            run_yolo(model,"./data/zod_yolo/images/val/","./results/yolo/",output_name,discretize_threshold=args.discretize_threshold)
         if run_test:
             print(f"Processing YOLO test images from ./data/zod_yolo/images/test/")
             run_yolo(model,"./data/zod_yolo/images/test/","./results/yolo/",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
@@ -353,11 +358,13 @@ def main():
             register_coco_instances("train", {}, os.path.join("./data/zod_coco/", "zod_full_Anonymization.BLUR_train.json"), ".")
             train_dataset = DatasetCatalog.get("train")
             print(f"Processing Faster R-CNN train dataset ({len(train_dataset)} images)")
-            run_faster_rcnn(
-                predictor,
-                train_dataset,
-                "results/faster-rcnn",
-                discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou)
+            run_faster_rcnn(predictor,train_dataset,"results/faster-rcnn",discretize_threshold=args.discretize_threshold)
+        if run_validate:
+            #register_coco_instances("valid", {}, os.path.join("./data/zod_coco/", "valid", "_annotations.coco.json"), ".")
+            register_coco_instances("valid", {}, os.path.join("./data/zod_coco/", "zod_full_Anonymization.BLUR_val.json"), ".")
+            val_dataset = DatasetCatalog.get("valid")
+            print(f"Processing Faster R-CNN validation dataset ({len(val_dataset)} images)")
+            run_faster_rcnn(predictor,val_dataset,"results/faster-rcnn",output_name,discretize_threshold=args.discretize_threshold)
         if run_test:
             #register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "test", "_annotations.coco.json"), ".")
             register_coco_instances("test", {}, os.path.join("./data/zod_coco/", "zod_full_Anonymization.BLUR_test.json"), ".")
@@ -371,7 +378,10 @@ def main():
         model = RFDETRBase(pretrain_weights=model_path)
         if run_train:
             print(f"Processing RF-DETR train images from {args.yolo_train}")
-            run_rf_detr(model,"./data/zod_yolo/images/train/","results/rf-detr",discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)
+            run_rf_detr(model,"./data/zod_yolo/images/train/","results/rf-detr",discretize_threshold=args.discretize_threshold)
+        if run_validate:
+            print(f"Processing RF-DETR validation images from {args.yolo_valid}")
+            run_rf_detr(model,"./data/zod_yolo/images/val/","results/rf-detr",output_name,discretize_threshold=args.discretize_threshold)
         if run_test:
             print(f"Processing RF-DETR test images from {args.yolo_test}")
             run_rf_detr(model,"./data/zod_yolo/images/test/","results/rf-detr",output_name,discretize_threshold=args.discretize_threshold, save_zero_iou=args.save_zero_iou, save_preds=True)

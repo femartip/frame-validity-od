@@ -59,7 +59,9 @@ class Trainer(DefaultTrainer):
 def build_config(args: Namespace) -> CfgNode:
     cfg = get_cfg()
     if args.evaluate_only:
-        cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
+        with open(os.path.join(cfg.OUTPUT_DIR, "last_checkpoint"), "r") as f:
+            last_checkpoint = f.read().strip()
+        cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, last_checkpoint)
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"))
     cfg.DATASETS.TRAIN = ("train",)
     cfg.DATASETS.TEST = ("valid",)
@@ -116,6 +118,7 @@ def main(args: Namespace):
 
 if __name__ == "__main__":
     parser = default_argument_parser()
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument("--zod-path", default="data/zod_coco")
     parser.add_argument("--train-json", default="_annotations.coco.json")
     parser.add_argument("--val-json", default="_annotations.coco.json")

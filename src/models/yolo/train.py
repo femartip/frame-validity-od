@@ -25,7 +25,7 @@ def upload_to_hub(model_dir: str, repo_name: str, token: str) -> None:
 
 def load_model(resume: bool) -> YOLO:
     if resume:
-        model_path = Path("./models/yolo/train/weights/last.pt")
+        model_path = Path("./models/yolo/train/weights/best.pt")
     else:
         model_path = "./models/yolo11l.pt"
 
@@ -68,20 +68,36 @@ def train_yolo(model: YOLO, resume: bool)-> dict:
 
 def eval_yolo(model: YOLO) -> dict:
     # Evaluate the model's performance on the validation set
-    metrics = model.val()
+    metrics = model.val(
+        data="./data/zod_yolo/dataset.yaml",imgsz=512,batch=32,device=0)
 
     print("Evaluation results:")
+    print(metrics)
+    return metrics
+
+def test_yolo(model: YOLO) -> dict:
+    # Test the model's performance on the test set
+    metrics = model.val(
+        data="./data/zod_yolo/dataset.yaml",imgsz=512,batch=32,device=0,split="test")
+
+    print("Test results:")
     print(metrics)
     return metrics
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--eval-only', action='store_true')
+    parser.add_argument('--test-only', action='store_true')
     parser.add_argument("--push-to-hub", action="store_true")
     args = parser.parse_args()
     
     model = load_model(args.resume)
-    train_yolo(model, args.resume)
-    #eval_yolo(model)
+    if args.eval_only:
+        eval_yolo(model)
+    elif args.test_only:
+        test_yolo(model)
+    else:
+        train_yolo(model, args.resume)
     if args.push_to_hub:
         upload_to_hub("./models/yolo/train", "femartip/yolo-zod", os.environ["HF_TOKEN"])
