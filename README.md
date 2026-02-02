@@ -2,10 +2,6 @@
 
 Research code for **instance-level predictability / performance assessment of object detection systems** in driving scenes.
 
-This repo supports the workflow described in your Obsidian PhD notes:
-- Obsidian (paper + research log): `~/Documents/Obsedian/PhD/01 Predictability - OD/`
-- This repo (code + notebooks): `~/Documents/Github/Predictability-AD/`
-
 ## Research goal
 
 Build lightweight **assessor models** that predict, for each driving-frame instance, how well a given object detector will perform.
@@ -14,9 +10,6 @@ Build lightweight **assessor models** that predict, for each driving-frame insta
 - Meta-features `φ(I)`: context extracted per frame (dataset metadata, weather, image quality, embeddings, detector outputs)
 - Target `V(I,S)`: an instance-level validity indicator (e.g., meanIoU-with-zeros, LRP)
 - Assessor `M`: a meta-model trained so that `M(φ(I), S) ≈ V(I,S)`
-
-Draft write-up lives in Obsidian:
-- `PhD/01 Predictability - OD/Paper.md`
 
 ## Repo layout
 
@@ -105,16 +98,7 @@ python src/data/zod_to_tabular.py 1000 --resume
 Output:
 - `data/metafeatures.csv`
 
-### 4) (Optional) Build image embeddings (ResNet18 + PCA)
-
-```bash
-python src/data/build_embeddings.py --pca-dim 256
-```
-
-Output:
-- `data/image_embeddings.csv`
-
-### 5) (Optional) LLM-derived meta-features
+### 4) (Optional) LLM-derived meta-features
 
 Requires a `.env` in repo root with keys referenced by the script:
 - `OPENAI_KEY`
@@ -134,7 +118,7 @@ Outputs:
 - `data/llm_metafeatures_description.json`
 - `data/llm_metafeatures.csv`
 
-### 6) Run detector inference and compute per-instance IoU/LRP
+### 5) Run detector inference and compute per-instance IoU/LRP
 
 This produces per-image JSON with keys like `iou`, `lrp`, and confidence stats.
 
@@ -159,7 +143,7 @@ You can discretize targets (for classification-style assessors):
 python src/models/run_inference.py yolo <weights.pt> --test --discretize-threshold 0.5
 ```
 
-### 7) Combine features + targets into a training table
+### 6) Combine features + targets into a training table
 
 ```bash
 # Use hand-crafted meta-features
@@ -177,7 +161,7 @@ Outputs (examples):
 - `data/yolo_llm-metafeatures.csv`
 - `data/yolo_metafeatures_disc.csv`
 
-### 8) Train assessors / analyze results
+### 7) Train assessors / analyze results
 
 This part is currently notebook-driven:
 - `notebooks/assessors.ipynb`
@@ -196,11 +180,3 @@ At a high level:
 For the full table/plots, see:
 - Obsidian: `PhD/01 Predictability - OD/Paper.md`
 - Repo outputs: `results/`
-
-## What I intentionally did NOT include here
-
-- Claims about final/production-ready numbers (this is research-in-progress)
-- A fully pinned, reproducible environment (CUDA + git deps makes that a separate effort)
-- Dataset download instructions for ZOD (depends on your access setup)
-
-If you want, next step is to add a `Makefile` or `scripts/` that runs the pipeline end-to-end with explicit paths.
