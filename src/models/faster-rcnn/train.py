@@ -1,5 +1,7 @@
+import argparse
 import os
 import os.path as osp
+import argparse
 from argparse import Namespace
 
 from detectron2 import model_zoo
@@ -7,7 +9,7 @@ from detectron2.config import CfgNode, get_cfg
 from detectron2.data import DatasetMapper, build_detection_train_loader
 from detectron2.data import transforms as T
 from detectron2.data.datasets import register_coco_instances
-from detectron2.engine import DefaultTrainer, default_argument_parser, default_setup, launch
+from detectron2.engine import DefaultTrainer, default_setup, launch
 from detectron2.evaluation import COCOEvaluator
 
 from zod.anno.object import OBJECT_CLASSES
@@ -65,10 +67,10 @@ def build_config(args: Namespace) -> CfgNode:
     cfg.merge_from_file(model_zoo.get_config_file("COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"))
     cfg.DATASETS.TRAIN = ("train",)
     cfg.DATASETS.TEST = ("valid",)
-    cfg.DATALOADER.NUM_WORKERS = 16
+    cfg.DATALOADER.NUM_WORKERS = 8
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(OBJECT_CLASSES)
     cfg.OUTPUT_DIR = "./models/faster-rcnn/"
-    cfg.SOLVER.IMS_PER_BATCH = 16
+    cfg.SOLVER.IMS_PER_BATCH = 8
     cfg.SOLVER.BASE_LR = 0.001
     cfg.SOLVER.MAX_ITER = 150000
     cfg.SOLVER.STEPS = (80000, 110000)
@@ -117,7 +119,7 @@ def main(args: Namespace):
 
 
 if __name__ == "__main__":
-    parser = default_argument_parser()
+    parser = argparse.ArgumentParser()    
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--zod-path", default="data/zod_coco")
     parser.add_argument("--train-json", default="_annotations.coco.json")
@@ -125,7 +127,6 @@ if __name__ == "__main__":
     parser.add_argument("--image-root", default=".")
     parser.add_argument("--evaluate-only", action="store_true")
     parser.add_argument("--push-to-hub", action="store_true")
-    
     args = parser.parse_args()
     
     print("Command Line Args:", args)
