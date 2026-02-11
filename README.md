@@ -38,6 +38,8 @@ poetry install
 poetry shell
 ```
 
+Detectron2 needs to be installed separetly, can use: pip install --extra-index-url https://miropsota.github.io/torch_packages_builder detectron2==0.6+fd27788pt2.9.1cu128
+
 ### Notes (important)
 
 - Python: `>=3.11, <3.14`

@@ -63,7 +63,7 @@ def _convert_frame(frame: ZodFrame, classes: List[str], anonymization: Anonymiza
             "area": round(obj.box2d.area, 2),
             "iscrowd": obj.subclass == "Unclear",
         }
-        for obj_idx, obj in enumerate(objs) if obj.name in classes and str(obj.occlusion_level) in ["None", "Medium"] and (obj.box2d.ymax - obj.box2d.ymin) >= 25
+        for obj_idx, obj in enumerate(objs) if obj.name in classes and str(obj.occlusion_level) in ["None", "Light", "Medium"] and (obj.box2d.ymax - obj.box2d.ymin) >= 25
     ]
     return image_dict, anno_dicts
 
@@ -119,7 +119,7 @@ def convert_to_coco(dataset_root: str, output_dir: str, version: str = "full", a
     for cls in classes:
         if cls not in OBJECT_CLASSES:
             raise ValueError(f"ERROR: Invalid class: {cls}.")
-    print(f"Converting ZOD to COCO format. Version: {version}, anonymization: {anonymization}, classes: {classes}, filtering by: occlusion level either None or Medium and height >= 25")
+    print(f"Converting ZOD to COCO format. Version: {version}, anonymization: {anonymization}, classes: {classes}, filtering by: occlusion level either None, Light or Medium and height >= 25")
     
     zod_frames = ZodFrames(str(dataset_root), version)      #type: ignore
 

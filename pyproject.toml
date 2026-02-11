@@ -44,6 +44,7 @@ dependencies = [
     "trackio (>=0.14.2,<0.15.0)",
     "torchvision (==0.24.1+cu128)",
     "torch (==2.9.1+cu128)",
+    "bz2file (>=0.98,<0.99)",
 ]
 
 [tool.poetry]

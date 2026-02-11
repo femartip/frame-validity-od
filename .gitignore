@@ -1,3 +1,4 @@
+data/zod/zod
 data/SeeingThroughFog
 data/SemanticSpray
 data/zod/single_frames
@@ -12,6 +13,9 @@ models/assessors
 models/yolo
 models/rf-detr
 models/faster-rcnn
+
+logs
+*.slurm
 
 InternImage
 
