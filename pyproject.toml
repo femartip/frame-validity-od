@@ -45,6 +45,7 @@ dependencies = [
     "torchvision (==0.24.1+cu128)",
     "torch (==2.9.1+cu128)",
     "bz2file (>=0.98,<0.99)",
+    "wandb (>=0.25.0,<0.26.0)",
 ]
 
 [tool.poetry]

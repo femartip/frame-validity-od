@@ -3,7 +3,10 @@ import os
 import os.path as osp
 import argparse
 from argparse import Namespace
+import tensorboard
+import wandb
 
+import detectron2.utils.comm as comm
 from detectron2 import model_zoo
 from detectron2.config import CfgNode, get_cfg
 from detectron2.data import DatasetMapper, build_detection_train_loader
@@ -70,7 +73,7 @@ def build_config(args: Namespace) -> CfgNode:
     cfg.DATALOADER.NUM_WORKERS = 8
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(OBJECT_CLASSES)
     cfg.OUTPUT_DIR = "./models/faster-rcnn/"
-    cfg.SOLVER.IMS_PER_BATCH = 8
+    cfg.SOLVER.IMS_PER_BATCH = 16
     cfg.SOLVER.BASE_LR = 0.001
     cfg.SOLVER.MAX_ITER = 150000
     cfg.SOLVER.STEPS = (80000, 110000)
@@ -106,6 +109,10 @@ def main(args: Namespace):
     register_dataset(args.zod_path, args.train_json, args.val_json, args.image_root)
     cfg = build_config(args)
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
+
+    if comm.is_main_process():
+        wandb.init(project="faster-rcnn-zod", name="faster-rcnn-finetune", dir=cfg.OUTPUT_DIR, config={"cfg_yaml": cfg.dump()}, sync_tensorboard=True)
+        os.environ["WANDB_TENSORBOARD_LOGDIR"] = cfg.OUTPUT_DIR
     
     if args.evaluate_only:
         evaluate_model(cfg)
