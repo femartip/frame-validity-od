@@ -1,0 +1,7 @@
+names:
+  0: Vehicle
+  1: VulnerableVehicle
+  2: Pedestrian
+test: images/test
+train: images/train
+val: images/val

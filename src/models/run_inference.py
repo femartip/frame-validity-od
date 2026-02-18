@@ -348,7 +348,9 @@ def main():
     # Faster RCNN logic
     elif args.model == "faster-rcnn":
         cfg = get_cfg()
+        cfg.set_new_allowed(True)  # allow custom keys like DATASETS.VAL saved in training config
         cfg.merge_from_file("./models/faster-rcnn/config.yaml")
+        cfg.set_new_allowed(False)
         cfg.MODEL.WEIGHTS = args.checkpoint
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
         cfg.freeze()
