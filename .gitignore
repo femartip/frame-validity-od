@@ -19,6 +19,8 @@ logs
 
 InternImage
 
+*.jsonl
+
 results/yolo/images
 results/yolo/iou0_images
 results/internimage/images
