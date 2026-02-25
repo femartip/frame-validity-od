@@ -1,214 +1,98 @@
-# Predictability-AD
+# Predictability-AD — MetaDetect Pipeline
 
-Research code for **instance-level predictability / performance assessment of object detection systems** in driving scenes.
+This repo is configured to run the **MetaDetect** pipeline on the ZOD dataset and train **image-level** assessor models that predict detection quality (IoU / LRP). The pipeline extracts **model-intrinsic** features from **pre-NMS predictions**, groups NMS candidates per detection, computes MetaDetect features, and aggregates them per image for assessor training.
 
-## Research goal
+This README only documents the MetaDetect pipeline.
 
-Build lightweight **assessor models** that predict, for each driving-frame instance, how well a given object detector will perform.
+## What MetaDetect Does (Conceptually)
 
-- Primary model `S`: an object detector (e.g., YOLO / Faster R-CNN / RF-DETR)
-- Meta-features `φ(I)`: context extracted per frame (dataset metadata, weather, image quality, embeddings, detector outputs)
-- Target `V(I,S)`: an instance-level validity indicator (e.g., meanIoU-with-zeros, LRP)
-- Assessor `M`: a meta-model trained so that `M(φ(I), S) ≈ V(I,S)`
+MetaDetect builds features from a detector’s **raw pre-NMS predictions**. For each detection, it uses:
+- Box geometry and score
+- Class probabilities
+- Statistics over **NMS candidate boxes** (boxes suppressed by that detection)
+- IoU statistics between the detection and its candidates
 
-## Repo layout
+These per-detection features are then **aggregated per image** (min/max/mean/std for scalars; mean/max for class probabilities) so they can be used with the image-level assessor workflow in this repo.
 
-- `src/data/`
-  - feature extraction and dataset building
-- `src/models/`
-  - detector inference + per-instance metric computation
-- `src/utils/`
-  - conversion utilities (ZOD → COCO → YOLO)
-- `notebooks/`
-  - analysis + assessor training notebooks
-- `data/`
-  - cached CSVs / artifacts used by scripts and notebooks
-- `results/`
-  - detections JSONs, tables, plots
+## How This Differs From the Original Paper
 
-## Installation
+The original MetaDetect setup is **per-detection**. This repo uses **image-level aggregation** so it can plug into existing assessor training and evaluation. Key differences:
 
-Python project defined in `pyproject.toml`.
+- **Granularity:**
+  - Paper: per-detection assessors
+  - Here: per-image aggregated features
+- **Candidate sets:**
+  - Paper: exact NMS-suppressed candidates per detection
+  - Here: reconstructed candidate grouping using the model’s NMS IoU threshold (same greedy logic)
+- **MC-dropout features:**
+  - Paper: optional 66+C feature set
+  - Here: not used
 
-### Poetry
+If you need paper-faithful results, remove aggregation and train per-detection assessors.
 
-```bash
-cd Predictability-AD
-poetry install
-poetry shell
-```
+## Requirements
 
-Detectron2 needs to be installed separetly, can use: pip install --extra-index-url https://miropsota.github.io/torch_packages_builder detectron2==0.6+fd27788pt2.9.1cu128
+- Python >= 3.11
+- ZOD dataset under `./data/zod/`
+- Detectron2 + Ultralytics installed for Faster R-CNN / YOLO
 
-### Notes (important)
+## Pipeline (MetaDetect)
 
-- Python: `>=3.11, <3.14`
-- Some deps are heavy and/or pinned (CUDA torch, git deps such as ZOD and RF-DETR). If you don’t have CUDA, expect to adjust `torch/torchvision` pins.
-
-## Data expectations / local layout
-
-This project assumes data is placed under `./data/`.
-
-### ZOD Frames
-
-- Place ZOD under:
-  - `data/zod/`
-
-Scripts use:
-- `ZodFrames(dataset_root="./data/zod", version="full")`
-
-### COCO and YOLO derived datasets
-
-The repo includes scripts to generate:
-- COCO annotations: `data/zod_coco/*.json`
-- YOLO dataset: `data/zod_yolo/images/{train,val,test}/` and `data/zod_yolo/labels/{train,val,test}/`
-
-## End-to-end pipeline (recommended)
-
-This is the minimal sequence that matches the current codebase.
-
-### 1) Convert ZOD → COCO
+### 1) Prepare ZOD in YOLO / COCO format
 
 ```bash
+# ZOD → COCO
 python src/utils/zod_to_coco.py
-```
 
-This writes (example names):
-- `data/zod_coco/zod_full_Anonymization.BLUR_train.json`
-- `data/zod_coco/zod_full_Anonymization.BLUR_val.json`
-- `data/zod_coco/zod_full_Anonymization.BLUR_test.json`
-
-### 2) Convert COCO → YOLO (and copy images)
-
-```bash
+# COCO → YOLO
 python src/utils/coco_to_yolo.py
 ```
 
-This creates:
-- `data/zod_yolo/images/...`
-- `data/zod_yolo/labels/...`
-- `data/zod_yolo/dataset.yaml`
-
-### 3) Build tabular meta-features (metadata + weather + image quality)
+### 2) Run detector inference and save **pre-NMS** raw predictions
 
 ```bash
-python src/data/zod_to_tabular.py 1000
-# add --resume to append without recomputing existing ids
-python src/data/zod_to_tabular.py 1000 --resume
-```
-
-Output:
-- `data/metafeatures.csv`
-
-### 4) (Optional) LLM-derived meta-features
-
-Requires a `.env` in repo root with keys referenced by the script:
-- `OPENAI_KEY`
-- `GOOGLE_API_KEY`
-
-Run:
-```bash
-python src/data/llm_feature_extraction.py openai
-# or
-python src/data/llm_feature_extraction.py gemini
-
-# resume mode reuses existing description/csv if present
-python src/data/llm_feature_extraction.py openai --resume
-```
-
-Outputs:
-- `data/llm_metafeatures_description.json`
-- `data/llm_metafeatures.csv`
-
-### 5) Run detector inference and compute per-instance IoU/LRP
-
-This produces per-image JSON with keys like `iou`, `lrp`, and confidence stats.
-
-```bash
-# YOLO
-python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test
-
-# Faster R-CNN
-python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test
-
-# RF-DETR
-python src/models/run_inference.py rf-detr <path-to-rfdetr-weights> --test
-```
-
-Outputs (examples):
-- `results/yolo/detections.json`
-- `results/faster-rcnn/detections.json`
-- `results/rf-detr/detections.json`
-
-### 5b) (Optional) Save pre-NMS raw predictions for MetaDetect features
-
-```bash
-# YOLO raw (pre-NMS)
+# YOLO (pre-NMS raw + detections)
 python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test --save-raw
 
-# Faster R-CNN raw (pre-NMS)
+# Faster R-CNN (pre-NMS raw + detections)
 python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test --save-raw
 ```
 
-Outputs (examples):
-- `results/yolo/raw_predictions.jsonl`
-- `results/yolo/raw_predictions.meta.json`
-- `results/faster-rcnn/raw_predictions.jsonl`
-- `results/faster-rcnn/raw_predictions.meta.json`
+Outputs:
+- `results/<model>/detections.json`
+- `results/<model>/raw_predictions.jsonl`
+- `results/<model>/raw_predictions.meta.json`
 
-You can discretize targets (for classification-style assessors):
-```bash
-python src/models/run_inference.py yolo <weights.pt> --test --discretize-threshold 0.5
-```
-
-### 6) Combine features + targets into a training table
+### 3) Build the MetaDetect dataset (image-level)
 
 ```bash
-# Use hand-crafted meta-features
-python src/data/combine_data_predictions.py yolo metafeatures
-
-# Use LLM meta-features
-python src/data/combine_data_predictions.py yolo llm-metafeatures
-
-# Use discretized detections
-python src/data/combine_data_predictions.py yolo metafeatures --discretize
-```
-
-Outputs (examples):
-- `data/yolo_metafeatures.csv`
-- `data/yolo_llm-metafeatures.csv`
-- `data/yolo_metafeatures_disc.csv`
-
-### 6b) Build MetaDetect feature tables (per-image aggregated)
-
-```bash
-# YOLO MetaDetect
 python src/data/build_metadetect_dataset.py yolo --raw results/yolo/raw_predictions.jsonl --targets results/yolo/detections.json
-
-# Faster R-CNN MetaDetect
 python src/data/build_metadetect_dataset.py faster-rcnn --raw results/faster-rcnn/raw_predictions.jsonl --targets results/faster-rcnn/detections.json
 ```
 
-Outputs (examples):
+Outputs:
 - `data/yolo_metadetect.csv`
 - `data/faster-rcnn_metadetect.csv`
 
-### 7) Train assessors / analyze results
+### 4) Train assessors
 
-This part is currently notebook-driven:
-- `notebooks/assessors.ipynb`
-- `notebooks/assessors_classification.ipynb`
-- `notebooks/assess_pred_analysis.ipynb`
+Use the MetaDetect assessor notebook (image-level):
 
-## Results (current, from the draft)
+- `notebooks/assessors_metadetect.ipynb`
 
-You already have an initial set of assessor results in the Obsidian paper draft.
+This notebook trains multiple regressors (Linear / RF / MLP / XGBoost / AutoGluon) for IoU and LRP.
 
-At a high level:
-- baselines using detector confidence already explain a chunk of variance,
-- richer meta-features improve performance modestly,
-- AutoGluon/ensembles tend to be strongest.
+## Notes on Performance
 
-For the full table/plots, see:
-- Obsidian: `PhD/01 Predictability - OD/Paper.md`
-- Repo outputs: `results/`
+If `build_metadetect_dataset.py` is slow, the cause is typically very large pre-NMS candidate counts. The script caps pre-NMS candidates per class (default 1000) to keep runtime tractable.
+
+You can adjust this cap in `src/data/build_metadetect_dataset.py`:
+```python
+MAX_PRE_NMS_PER_CLASS = 1000
+```
+
+## Outputs You Should Expect
+
+- Image-level MetaDetect feature CSVs
+- Assessor performance tables and plots from the notebook
+
