@@ -3,6 +3,7 @@ import json
 import os
 import pandas as pd
 import statistics
+import re
 
 def combine_results(data: pd.DataFrame, predictions: dict) -> pd.DataFrame:
     results = {}
@@ -44,8 +45,8 @@ if __name__ == '__main__':
 
     output_dir = "./data"
 
-    if args.features == "metafeatures":
-        data_path = "./data/metafeatures.csv"
+    if :
+        data_path = f"./data/{args.features}.csv"
         feature_tag = "metafeatures"
     else:
         data_path = "./data/llm_metafeatures.csv"

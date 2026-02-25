@@ -39,8 +39,9 @@ from brisque import score as brisque_score
 import torch
 from torchmetrics import multimodal
 
-DATA_DIR = "./data/metafeatures.csv"
+DATA_DIR = "./data/metafeatures_new.csv"
 WEATHER_API_TIMEOUT_SECONDS = 300  
+IMG_SIZE = (1344, 756)
 
 logger = logging.getLogger(__name__)
 
@@ -50,20 +51,15 @@ def get_iqa(image: np.ndarray, func) -> dict[str, float] | float:
 
     Adds debug logs for input shape, function type, and resulting values.
     """
-    logger.debug(
-        "Starting get_iqa: shape=%s, func=%s",
-        getattr(image, "shape", None), getattr(func, "__name__", type(func).__name__),
-    )
-    scale_percent = 50 
-    width = int(image.shape[1] * scale_percent / 100)
-    height = int(image.shape[0] * scale_percent / 100)
-    dim = (width, height)
-    image = cv2.resize(image, dim)
+    logger.debug("Starting get_iqa: shape=%s, func=%s",getattr(image, "shape", None), getattr(func, "__name__", type(func).__name__))
+    
+    image = cv2.resize(image, IMG_SIZE)
     args = []
 
     if isinstance(func, multimodal.CLIPImageQualityAssessment):
         image = torch.from_numpy(image)             #type: ignore
         image = image.permute(2, 0, 1).unsqueeze(0)             #type: ignore
+        image = image.to("cuda:0")             #type: ignore
     if func is cv2.Laplacian:
         args.append(cv2.CV_64F)
 
@@ -72,9 +68,9 @@ def get_iqa(image: np.ndarray, func) -> dict[str, float] | float:
 
     if isinstance(func, multimodal.CLIPImageQualityAssessment):
         if isinstance(blur, dict):
-            blur = {k:v.numpy() for k,v in blur.items()}
+            blur = {k:v.detach().cpu().numpy() for k,v in blur.items()}
         else:
-            blur = blur.numpy()
+            blur = blur.detach().cpu().numpy()
     elif func is cv2.Laplacian:
         blur = blur.var()
     else:
@@ -197,6 +193,10 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
 
     logger.debug("Fields initialized in data_dict: %s", list(data_dict.keys()))
 
+    use_fast = True
+    #func = {"brisque":brisque_score, "quality":multimodal.CLIPImageQualityAssessment(), "brightness": multimodal.CLIPImageQualityAssessment(prompts=("brightness",)),"noisiness": multimodal.CLIPImageQualityAssessment(prompts=("noisiness",)), "sharpness": multimodal.CLIPImageQualityAssessment(prompts=("sharpness",)), "contrast": multimodal.CLIPImageQualityAssessment(prompts=("contrast",)), "complexity": multimodal.CLIPImageQualityAssessment(prompts=("complexity",))}
+    func = {"laplacian":cv2.Laplacian, "clip":multimodal.CLIPImageQualityAssessment(prompts=("quality","brightness","noisiness", "sharpness", "contrast", "complexity")).to("cuda:0")}
+        
     for id in tqdm(frames_id):
         logger.debug("Processing frame_id=%s", id)
         # Collect required metadata without appending yet 
@@ -217,10 +217,7 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         cam = zod_frames[id].calibration.cameras[Camera.FRONT]
 
         try:
-            weather_dict = get_weather_from_api(
-                (meta_lat, meta_long),
-                pd.to_datetime(str(zod_frames[id].info.keyframe_time), utc=True).round('h'),
-            )
+            weather_dict = get_weather_from_api((meta_lat, meta_long), pd.to_datetime(str(zod_frames[id].info.keyframe_time), utc=True).round('h'))
         except RetryError:
             logger.warning(
                 "Weather API timed out after %ss for frame_id=%s; skipping frame",
@@ -277,9 +274,6 @@ def get_caracteristics(training_frames, zod_frames, num_frames: int, prev_frames
         image = zod_frame.get_image()
         logger.debug("Image fetched for frame_id=%s with shape=%s", id, getattr(image, "shape", None))
         
-        use_fast = True
-        #func = {"brisque":brisque_score, "quality":multimodal.CLIPImageQualityAssessment(), "brightness": multimodal.CLIPImageQualityAssessment(prompts=("brightness",)),"noisiness": multimodal.CLIPImageQualityAssessment(prompts=("noisiness",)), "sharpness": multimodal.CLIPImageQualityAssessment(prompts=("sharpness",)), "contrast": multimodal.CLIPImageQualityAssessment(prompts=("contrast",)), "complexity": multimodal.CLIPImageQualityAssessment(prompts=("complexity",))}
-        func = {"laplacian":cv2.Laplacian, "clip":multimodal.CLIPImageQualityAssessment(prompts=("quality","brightness","noisiness", "sharpness", "contrast", "complexity"))}
         iqa = {fname: get_iqa(image, f) for fname, f in func.items()}
         logger.debug("IQA computed for frame_id=%s: keys=%s", id, list(iqa.keys()))
         for fname, f in iqa.items():

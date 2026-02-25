@@ -71,7 +71,7 @@ def train_yolo(model: YOLO, resume: bool)-> dict:
 def eval_yolo(model: YOLO) -> dict:
     # Evaluate the model's performance on the validation set
     metrics = model.val(
-        data="./data/zod_yolo/dataset.yaml",imgsz=512,batch=32,device=0)
+        data="./data/zod_yolo/dataset.yaml",imgsz=1344,batch=16,device=0)
 
     print("Evaluation results:")
     print(metrics)
@@ -80,7 +80,7 @@ def eval_yolo(model: YOLO) -> dict:
 def test_yolo(model: YOLO) -> dict:
     # Test the model's performance on the test set
     metrics = model.val(
-        data="./data/zod_yolo/dataset.yaml",imgsz=512,batch=32,device=0,split="test")
+        data="./data/zod_yolo/dataset.yaml",imgsz=1344,batch=16,device=0,split="test")
 
     print("Test results:")
     print(metrics)

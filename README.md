@@ -140,6 +140,22 @@ Outputs (examples):
 - `results/faster-rcnn/detections.json`
 - `results/rf-detr/detections.json`
 
+### 5b) (Optional) Save pre-NMS raw predictions for MetaDetect features
+
+```bash
+# YOLO raw (pre-NMS)
+python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test --save-raw
+
+# Faster R-CNN raw (pre-NMS)
+python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test --save-raw
+```
+
+Outputs (examples):
+- `results/yolo/raw_predictions.jsonl`
+- `results/yolo/raw_predictions.meta.json`
+- `results/faster-rcnn/raw_predictions.jsonl`
+- `results/faster-rcnn/raw_predictions.meta.json`
+
 You can discretize targets (for classification-style assessors):
 ```bash
 python src/models/run_inference.py yolo <weights.pt> --test --discretize-threshold 0.5
@@ -162,6 +178,20 @@ Outputs (examples):
 - `data/yolo_metafeatures.csv`
 - `data/yolo_llm-metafeatures.csv`
 - `data/yolo_metafeatures_disc.csv`
+
+### 6b) Build MetaDetect feature tables (per-image aggregated)
+
+```bash
+# YOLO MetaDetect
+python src/data/build_metadetect_dataset.py yolo --raw results/yolo/raw_predictions.jsonl --targets results/yolo/detections.json
+
+# Faster R-CNN MetaDetect
+python src/data/build_metadetect_dataset.py faster-rcnn --raw results/faster-rcnn/raw_predictions.jsonl --targets results/faster-rcnn/detections.json
+```
+
+Outputs (examples):
+- `data/yolo_metadetect.csv`
+- `data/faster-rcnn_metadetect.csv`
 
 ### 7) Train assessors / analyze results
 
