@@ -1,6 +1,6 @@
 # Predictability-AD — MetaDetect Pipeline
 
-This repo is configured to run the **MetaDetect** pipeline on the ZOD dataset and train **image-level** assessor models that predict detection quality (IoU / LRP). The pipeline extracts **model-intrinsic** features from **pre-NMS predictions**, groups NMS candidates per detection, computes MetaDetect features, and aggregates them per image for assessor training.
+This repo is configured to run the **MetaDetect** pipeline on the ZOD dataset and train **image-level** validator models that predict detection quality (IoU / LRP). The pipeline extracts **model-intrinsic** features from **pre-NMS predictions**, groups NMS candidates per detection, computes MetaDetect features, and aggregates them per image for validator training.
 
 This README only documents the MetaDetect pipeline.
 
@@ -12,14 +12,14 @@ MetaDetect builds features from a detector’s **raw pre-NMS predictions**. For 
 - Statistics over **NMS candidate boxes** (boxes suppressed by that detection)
 - IoU statistics between the detection and its candidates
 
-These per-detection features are then **aggregated per image** (min/max/mean/std for scalars; mean/max for class probabilities) so they can be used with the image-level assessor workflow in this repo.
+These per-detection features are then **aggregated per image** (min/max/mean/std for scalars; mean/max for class probabilities) so they can be used with the image-level validator workflow in this repo.
 
 ## How This Differs From the Original Paper
 
-The original MetaDetect setup is **per-detection**. This repo uses **image-level aggregation** so it can plug into existing assessor training and evaluation. Key differences:
+The original MetaDetect setup is **per-detection**. This repo uses **image-level aggregation** so it can plug into existing validator training and evaluation. Key differences:
 
 - **Granularity:**
-  - Paper: per-detection assessors
+  - Paper: per-detection validator
   - Here: per-image aggregated features
 - **Candidate sets:**
   - Paper: exact NMS-suppressed candidates per detection
@@ -28,7 +28,7 @@ The original MetaDetect setup is **per-detection**. This repo uses **image-level
   - Paper: optional 66+C feature set
   - Here: not used
 
-If you need paper-faithful results, remove aggregation and train per-detection assessors.
+If you need paper-faithful results, remove aggregation and train per-detection validator.
 
 ## Requirements
 
@@ -74,11 +74,11 @@ Outputs:
 - `data/yolo_metadetect.csv`
 - `data/faster-rcnn_metadetect.csv`
 
-### 4) Train assessors
+### 4) Train validator models
 
-Use the MetaDetect assessor notebook (image-level):
+Use the MetaDetect notebook (image-level):
 
-- `notebooks/assessors_metadetect.ipynb`
+- `notebooks/metadetect_models.ipynb`
 
 This notebook trains multiple regressors (Linear / RF / MLP / XGBoost / AutoGluon) for IoU and LRP.
 
@@ -94,5 +94,5 @@ MAX_PRE_NMS_PER_CLASS = 1000
 ## Outputs You Should Expect
 
 - Image-level MetaDetect feature CSVs
-- Assessor performance tables and plots from the notebook
+- Validator performance tables and plots from the notebook
 
