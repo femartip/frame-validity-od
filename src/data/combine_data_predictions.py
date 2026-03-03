@@ -45,7 +45,7 @@ if __name__ == '__main__':
 
     output_dir = "./data"
 
-    if :
+    if args.features == "metafeatures":
         data_path = f"./data/{args.features}.csv"
         feature_tag = "metafeatures"
     else:
