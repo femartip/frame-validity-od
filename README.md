@@ -61,6 +61,20 @@ The repo includes scripts to generate:
 - COCO annotations: `data/zod_coco/*.json`
 - YOLO dataset: `data/zod_yolo/images/{train,val,test}/` and `data/zod_yolo/labels/{train,val,test}/`
 
+## Availability
+
+### Models
+
+- Faster R-CNN model: https://huggingface.co/femartip/faster-rcnn-zod
+- YOLO model: https://huggingface.co/femartip/yolo-zod
+
+### Datasets
+
+- Metafeatures: https://huggingface.co/datasets/femartip/zod-metafeatures
+- Faster R-CNN metafeatures: https://huggingface.co/datasets/femartip/zod-faster-rcnn-metafeatures
+- YOLO metafeatures: https://huggingface.co/datasets/femartip/zod-yolo-metafeatures
+
+
 ## End-to-end pipeline (recommended)
 
 This is the minimal sequence that matches the current codebase.
@@ -175,19 +189,6 @@ python src/data/upload_metafeatures_to_hf.py --namespace femartip
 ```
 
 The script creates separate dataset repos with a short dataset card explaining the source split, feature set, and target columns.
-
-## Hugging Face links
-
-### Models
-
-- Faster R-CNN model: https://huggingface.co/femartip/faster-rcnn-zod
-- YOLO model: https://huggingface.co/femartip/yolo-zod
-
-### Datasets
-
-- Metafeatures: https://huggingface.co/datasets/femartip/zod-metafeatures
-- Faster R-CNN metafeatures: https://huggingface.co/datasets/femartip/zod-faster-rcnn-metafeatures
-- YOLO metafeatures: https://huggingface.co/datasets/femartip/zod-yolo-metafeatures
 
 ### 6) Train assessors / analyze results
 
