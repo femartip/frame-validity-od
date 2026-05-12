@@ -9,6 +9,8 @@ readme = "README.md"
 requires-python = ">=3.11, <3.14"
 dependencies = [
     "zod[cli] @ git+https://github.com/zenseact/zod.git@01ecd32",
+    "datasets (>=2.21.0,<3.0.0)",
+    "huggingface_hub (>=0.34.0,<1.0.0)",
     "matplotlib (>=3.10.3,<4.0.0)",
     "opencv-python (>=4.11.0.86,<5.0.0.0)",
     "plotly (>=6.1.2,<7.0.0)",

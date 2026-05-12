@@ -1,13 +1,11 @@
-# Predictability-AD
-
-Research code for **instance-level predictability / performance assessment of object detection systems** in driving scenes.
+# Frame-Level Trust for Object Detection in Driving Scenes
 
 ## Research goal
 
 Build lightweight **assessor models** that predict, for each driving-frame instance, how well a given object detector will perform.
 
-- Primary model `S`: an object detector (e.g., YOLO / Faster R-CNN / RF-DETR)
-- Meta-features `φ(I)`: context extracted per frame (dataset metadata, weather, image quality, embeddings, detector outputs)
+- Primary model `S`: an object detector (e.g., YOLO / Faster R-CNN)
+- Meta-features `φ(I)`: context extracted per frame (dataset metadata, weather, image quality, detector outputs)
 - Target `V(I,S)`: an instance-level validity indicator (e.g., meanIoU-with-zeros, LRP)
 - Assessor `M`: a meta-model trained so that `M(φ(I), S) ≈ V(I,S)`
 
@@ -100,27 +98,7 @@ python src/data/zod_to_tabular.py 1000 --resume
 Output:
 - `data/metafeatures.csv`
 
-### 4) (Optional) LLM-derived meta-features
-
-Requires a `.env` in repo root with keys referenced by the script:
-- `OPENAI_KEY`
-- `GOOGLE_API_KEY`
-
-Run:
-```bash
-python src/data/llm_feature_extraction.py openai
-# or
-python src/data/llm_feature_extraction.py gemini
-
-# resume mode reuses existing description/csv if present
-python src/data/llm_feature_extraction.py openai --resume
-```
-
-Outputs:
-- `data/llm_metafeatures_description.json`
-- `data/llm_metafeatures.csv`
-
-### 5) Run detector inference and compute per-instance IoU/LRP
+### 4) Run detector inference and compute per-instance IoU/LRP
 
 This produces per-image JSON with keys like `iou`, `lrp`, and confidence stats.
 
@@ -130,17 +108,13 @@ python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test
 
 # Faster R-CNN
 python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test
-
-# RF-DETR
-python src/models/run_inference.py rf-detr <path-to-rfdetr-weights> --test
 ```
 
 Outputs (examples):
 - `results/yolo/detections.json`
 - `results/faster-rcnn/detections.json`
-- `results/rf-detr/detections.json`
 
-### 5b) (Optional) Save pre-NMS raw predictions for MetaDetect features
+### 4b) (Optional) Save pre-NMS raw predictions for MetaDetect features
 
 ```bash
 # YOLO raw (pre-NMS)
@@ -161,7 +135,7 @@ You can discretize targets (for classification-style assessors):
 python src/models/run_inference.py yolo <weights.pt> --test --discretize-threshold 0.5
 ```
 
-### 6) Combine features + targets into a training table
+### 5) Combine features + targets into a training table
 
 ```bash
 # Use hand-crafted meta-features
@@ -179,7 +153,50 @@ Outputs (examples):
 - `data/yolo_llm-metafeatures.csv`
 - `data/yolo_metafeatures_disc.csv`
 
-### 6b) Build MetaDetect feature tables (per-image aggregated)
+### 5a) Upload the tabular datasets to Hugging Face
+
+The repository includes a helper script that uploads the three tabular datasets as separate Hugging Face dataset repositories:
+
+- `data/metafeatures.csv` → ZOD validation meta-features only, no target column
+- `data/faster-rcnn_metafeatures.csv` → ZOD validation meta-features + Faster R-CNN targets
+- `data/yolo_metafeatures.csv` → ZOD validation meta-features + YOLO targets
+
+For the detector-specific datasets, the target columns are:
+
+- `iou`: mean IoU for the scene
+- `lrp`: LRP for the scene
+
+That means downstream users can choose either metric as the prediction target.
+
+Run:
+
+```bash
+python src/data/upload_metafeatures_to_hf.py --namespace femartip
+```
+
+The script creates separate dataset repos with a short dataset card explaining the source split, feature set, and target columns.
+
+## Hugging Face links
+
+### Models
+
+- Faster R-CNN model: https://huggingface.co/femartip/faster-rcnn-zod
+- YOLO model: https://huggingface.co/femartip/yolo-zod
+
+### Datasets
+
+- Metafeatures: https://huggingface.co/datasets/femartip/zod-metafeatures
+- Faster R-CNN metafeatures: https://huggingface.co/datasets/femartip/zod-faster-rcnn-metafeatures
+- YOLO metafeatures: https://huggingface.co/datasets/femartip/zod-yolo-metafeatures
+
+### 6) Train assessors / analyze results
+
+This part is currently notebook-driven:
+- `notebooks/assessors.ipynb`
+- `notebooks/assessors_classification.ipynb`
+- `notebooks/assess_pred_analysis.ipynb`
+
+### Experiments replicating MetaDetect, on metadetect branch
 
 ```bash
 # YOLO MetaDetect
@@ -193,22 +210,9 @@ Outputs (examples):
 - `data/yolo_metadetect.csv`
 - `data/faster-rcnn_metadetect.csv`
 
-### 7) Train assessors / analyze results
+## Lessons learned
 
-This part is currently notebook-driven:
-- `notebooks/assessors.ipynb`
-- `notebooks/assessors_classification.ipynb`
-- `notebooks/assess_pred_analysis.ipynb`
+- Adding the image as input does not help.
+- Using an MLLM to extract features also does not help.
+- Fine-tuning a realtively small MLLM to directly predict the validity indicator from the image, also does not help.  
 
-## Results (current, from the draft)
-
-You already have an initial set of assessor results in the Obsidian paper draft.
-
-At a high level:
-- baselines using detector confidence already explain a chunk of variance,
-- richer meta-features improve performance modestly,
-- AutoGluon/ensembles tend to be strongest.
-
-For the full table/plots, see:
-- Obsidian: `PhD/01 Predictability - OD/Paper.md`
-- Repo outputs: `results/`
