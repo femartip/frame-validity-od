@@ -1,6 +1,6 @@
 # Frame-Level Trust for Object Detection in Driving Scenes
 
-This repository accompanies our accepted conference paper on predicting the reliability of object detectors in real driving scenes. The goal is to estimate, for a given image and detector, how trustworthy the detector output is before using it downstream.
+This repository accompanies our accepted conference paper at ITSC26 on predicting the reliability of object detectors in real driving scenes. The goal is to estimate, for a given image and detector, how trustworthy the detector output is before using it downstream.
 
 We study lightweight validator models that take meta-features derived from the scene and the detector output, and predict a validity target such as mean IoU or LRP. The codebase includes dataset preparation, detector inference, meta-feature extraction, and assessor training and analysis.
 
@@ -151,8 +151,3 @@ Example outputs:
 - Adding the image as input does not help.
 - Using an MLLM to extract features also does not help.
 - Fine-tuning a relatively small MLLM to directly predict the validity indicator from the image also does not help.
-
-## Notes
-
-- The released paper figures in `assets/` are included here for convenience and for linking this repository in the camera-ready paper.
-- Citation metadata can be added once the final bibliographic information is public.
