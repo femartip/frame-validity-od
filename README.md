@@ -1,213 +1,148 @@
 # Frame-Level Trust for Object Detection in Driving Scenes
 
-## Research goal
+This repository accompanies our accepted conference paper on predicting the reliability of object detectors in real driving scenes. The goal is to estimate, for a given image and detector, how trustworthy the detector output is before using it downstream.
 
-Build lightweight **assessor models** that predict, for each driving-frame instance, how well a given object detector will perform.
+We study lightweight validator models that take meta-features derived from the scene and the detector output, and predict a validity target such as mean IoU or LRP. The codebase includes dataset preparation, detector inference, meta-feature extraction, and assessor training and analysis.
 
-- Primary model `S`: an object detector (e.g., YOLO / Faster R-CNN)
-- Meta-features `φ(I)`: context extracted per frame (dataset metadata, weather, image quality, detector outputs)
-- Target `V(I,S)`: an instance-level validity indicator (e.g., meanIoU-with-zeros, LRP)
-- Assessor `M`: a meta-model trained so that `M(φ(I), S) ≈ V(I,S)`
+## Overview
 
-## Repo layout
+Given an input frame `I` and an object detector `S`, we first run the detector and compare its predictions against ground truth to define a validity target `V(I, S)`. We then train a validator meta-model `M` to predict that target from image-level context and detector-side signals.
 
-- `src/data/`
-  - feature extraction and dataset building
-- `src/models/`
-  - detector inference + per-instance metric computation
-- `src/utils/`
-  - conversion utilities (ZOD → COCO → YOLO)
-- `notebooks/`
-  - analysis + assessor training notebooks
-- `data/`
-  - cached CSVs / artifacts used by scripts and notebooks
-- `results/`
-  - detections JSONs, tables, plots
+<p align="center">
+  <img src="assets/valid_workflow.png" alt="Workflow of the detector validation approach" width="100%">
+</p>
 
-## Installation
+## Qualitative examples
 
-Python project defined in `pyproject.toml`.
+The validator is meant to reflect detector quality across easy and difficult scenes. In the examples below, green boxes are ground truth, red boxes are detector predictions, `mIoU (GT)` is the target validity score, and `AutoGluon` is the validator prediction.
 
-### Poetry
+<p align="center">
+  <img src="assets/prediction_example.png" alt="Prediction examples from the paper" width="100%">
+</p>
+
+## Main results
+
+The paper evaluates both the base object detectors and the downstream validator models on held-out ZOD splits.
+
+<p align="center">
+  <img src="assets/table_1.png" alt="Detector performance table" width="32%">
+  <img src="assets/table_2.png" alt="YOLO validator results table" width="32%">
+  <img src="assets/table_3.png" alt="Faster R-CNN validator results table" width="32%">
+</p>
+
+Key takeaways from the reported results:
+
+- Simple confidence-only baselines are useful, but validator models consistently improve calibration and regression accuracy.
+- Tabular meta-models are competitive and often strong enough without requiring image-based assessor inputs.
+- The best results in the paper are obtained with `AutoGluon-Tab` on top of detector- and scene-level meta-features.
+
+## Repository contents
+
+- `src/data/`: meta-feature extraction, dataset building, Hugging Face dataset upload helpers
+- `src/models/`: detector training and inference, target metric computation, assessor-related utilities
+- `src/utils/`: data conversion utilities such as ZOD to COCO and COCO to YOLO
+- `notebooks/`: analysis notebooks and assessor experiments
+- `assets/`: figures and tables used in the paper
+
+## Setup
+
+The project is managed with Poetry and targets Python `>=3.11, <3.14`.
 
 ```bash
-cd Predictability-AD
 poetry install
 poetry shell
 ```
 
-Detectron2 needs to be installed separetly, can use: pip install --extra-index-url https://miropsota.github.io/torch_packages_builder detectron2==0.6+fd27788pt2.9.1cu128
+`detectron2` is installed separately in our setup:
 
-### Notes (important)
+```bash
+pip install --extra-index-url https://miropsota.github.io/torch_packages_builder detectron2==0.6+fd27788pt2.9.1cu128
+```
 
-- Python: `>=3.11, <3.14`
-- Some deps are heavy and/or pinned (CUDA torch, git deps such as ZOD and RF-DETR). If you don’t have CUDA, expect to adjust `torch/torchvision` pins.
+Some dependencies are CUDA-specific and pinned in `pyproject.toml`. If your environment differs, expect to adjust the `torch` and `torchvision` builds accordingly.
 
-## Data expectations / local layout
+## Data and pretrained artifacts
 
-This project assumes data is placed under `./data/`.
+Pretrained detectors:
 
-### ZOD Frames
+- YOLO: `https://huggingface.co/femartip/yolo-zod`
+- Faster R-CNN: `https://huggingface.co/femartip/faster-rcnn-zod`
 
-- Place ZOD under:
-  - `data/zod/`
+Released tabular datasets:
 
-Scripts use:
-- `ZodFrames(dataset_root="./data/zod", version="full")`
+- Meta-features only: `https://huggingface.co/datasets/femartip/zod-metafeatures`
+- Faster R-CNN targets: `https://huggingface.co/datasets/femartip/zod-faster-rcnn-metafeatures`
+- YOLO targets: `https://huggingface.co/datasets/femartip/zod-yolo-metafeatures`
 
-### COCO and YOLO derived datasets
+Local data is expected under `data/`, with ZOD placed at `data/zod/`. The repository also supports derived COCO and YOLO layouts under `data/zod_coco/` and `data/zod_yolo/`.
 
-The repo includes scripts to generate:
-- COCO annotations: `data/zod_coco/*.json`
-- YOLO dataset: `data/zod_yolo/images/{train,val,test}/` and `data/zod_yolo/labels/{train,val,test}/`
+## Minimal reproduction flow
 
-## Availability
-
-### Models
-
-- Faster R-CNN model: https://huggingface.co/femartip/faster-rcnn-zod
-- YOLO model: https://huggingface.co/femartip/yolo-zod
-
-### Datasets
-
-- Metafeatures: https://huggingface.co/datasets/femartip/zod-metafeatures
-- Faster R-CNN metafeatures: https://huggingface.co/datasets/femartip/zod-faster-rcnn-metafeatures
-- YOLO metafeatures: https://huggingface.co/datasets/femartip/zod-yolo-metafeatures
-
-
-## End-to-end pipeline (recommended)
-
-This is the minimal sequence that matches the current codebase.
-
-### 1) Convert ZOD → COCO
+### 1. Convert ZOD annotations
 
 ```bash
 python src/utils/zod_to_coco.py
-```
-
-This writes (example names):
-- `data/zod_coco/zod_full_Anonymization.BLUR_train.json`
-- `data/zod_coco/zod_full_Anonymization.BLUR_val.json`
-- `data/zod_coco/zod_full_Anonymization.BLUR_test.json`
-
-### 2) Convert COCO → YOLO (and copy images)
-
-```bash
 python src/utils/coco_to_yolo.py
 ```
 
-This creates:
-- `data/zod_yolo/images/...`
-- `data/zod_yolo/labels/...`
-- `data/zod_yolo/dataset.yaml`
-
-### 3) Build tabular meta-features (metadata + weather + image quality)
+### 2. Extract scene meta-features
 
 ```bash
 python src/data/zod_to_tabular.py 1000
-# add --resume to append without recomputing existing ids
-python src/data/zod_to_tabular.py 1000 --resume
 ```
 
-Output:
-- `data/metafeatures.csv`
+This produces `data/metafeatures.csv`.
 
-### 4) Run detector inference and compute per-instance IoU/LRP
-
-This produces per-image JSON with keys like `iou`, `lrp`, and confidence stats.
+### 3. Run detector inference and compute targets
 
 ```bash
-# YOLO
 python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test
-
-# Faster R-CNN
 python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test
 ```
 
-Outputs (examples):
+Example outputs:
+
 - `results/yolo/detections.json`
 - `results/faster-rcnn/detections.json`
 
-### 4b) (Optional) Save pre-NMS raw predictions for MetaDetect features
+### 4. Build detector-specific training tables
 
 ```bash
-# YOLO raw (pre-NMS)
-python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test --save-raw
-
-# Faster R-CNN raw (pre-NMS)
-python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test --save-raw
+python src/data/combine_data_predictions.py yolo metafeatures --level image
+python src/data/combine_data_predictions.py faster-rcnn metafeatures --level image
 ```
 
-Outputs (examples):
-- `results/yolo/raw_predictions.jsonl`
-- `results/yolo/raw_predictions.meta.json`
-- `results/faster-rcnn/raw_predictions.jsonl`
-- `results/faster-rcnn/raw_predictions.meta.json`
+Example outputs:
 
-You can discretize targets (for classification-style assessors):
-```bash
-python src/models/run_inference.py yolo <weights.pt> --test --discretize-threshold 0.5
-```
-
-### 5) Combine features + targets into a training table
-
-```bash
-# Use hand-crafted meta-features
-python src/data/combine_data_predictions.py yolo metafeatures
-
-# Use LLM meta-features
-python src/data/combine_data_predictions.py yolo llm-metafeatures
-
-# Use discretized detections
-python src/data/combine_data_predictions.py yolo metafeatures --discretize
-```
-
-Outputs (examples):
 - `data/yolo_metafeatures.csv`
-- `data/yolo_llm-metafeatures.csv`
-- `data/yolo_metafeatures_disc.csv`
+- `data/faster-rcnn_metafeatures.csv`
 
-### 5a) Upload the tabular datasets to Hugging Face
+### 5. Train and analyze validator models
 
-The repository includes a helper script that uploads the three tabular datasets as separate Hugging Face dataset repositories:
+The current assessor workflow is notebook-driven:
 
-- `data/metafeatures.csv` → ZOD validation meta-features only, no target column
-- `data/faster-rcnn_metafeatures.csv` → ZOD validation meta-features + Faster R-CNN targets
-- `data/yolo_metafeatures.csv` → ZOD validation meta-features + YOLO targets
-
-For the detector-specific datasets, the target columns are:
-
-- `iou`: mean IoU for the scene
-- `lrp`: LRP for the scene
-
-That means downstream users can choose either metric as the prediction target.
-
-Run:
-
-```bash
-python src/data/upload_metafeatures_to_hf.py --namespace femartip
-```
-
-The script creates separate dataset repos with a short dataset card explaining the source split, feature set, and target columns.
-
-### 6) Train assessors / analyze results
-
-This part is currently notebook-driven:
 - `notebooks/assessors.ipynb`
 - `notebooks/assessors_classification.ipynb`
 - `notebooks/assess_pred_analysis.ipynb`
 
-### Experiments replicating MetaDetect, on metadetect branch
+## MetaDetect branch
+
+The repository also includes a `metadetect` branch for experiments reproducing MetaDetect-style features from raw detector outputs.
+
+That branch uses pre-NMS detector predictions to build feature tables comparable to MetaDetect and then evaluates them as an alternative assessor input space.
+
+Typical usage on that branch:
 
 ```bash
-# YOLO MetaDetect
-python src/data/build_metadetect_dataset.py yolo --raw results/yolo/raw_predictions.jsonl --targets results/yolo/detections.json
+python src/models/run_inference.py yolo <path-to-yolo-weights.pt> --test --save-raw
+python src/models/run_inference.py faster-rcnn <path-to-model-weights.pth> --test --save-raw
 
-# Faster R-CNN MetaDetect
+python src/data/build_metadetect_dataset.py yolo --raw results/yolo/raw_predictions.jsonl --targets results/yolo/detections.json
 python src/data/build_metadetect_dataset.py faster-rcnn --raw results/faster-rcnn/raw_predictions.jsonl --targets results/faster-rcnn/detections.json
 ```
 
-Outputs (examples):
+Example outputs:
+
 - `data/yolo_metadetect.csv`
 - `data/faster-rcnn_metadetect.csv`
 
@@ -215,5 +150,9 @@ Outputs (examples):
 
 - Adding the image as input does not help.
 - Using an MLLM to extract features also does not help.
-- Fine-tuning a realtively small MLLM to directly predict the validity indicator from the image, also does not help.  
+- Fine-tuning a relatively small MLLM to directly predict the validity indicator from the image also does not help.
 
+## Notes
+
+- The released paper figures in `assets/` are included here for convenience and for linking this repository in the camera-ready paper.
+- Citation metadata can be added once the final bibliographic information is public.
